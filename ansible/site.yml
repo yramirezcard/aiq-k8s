@@ -1,0 +1,31 @@
+---
+# AIQ-on-Kubernetes — launchable cluster bring-up.
+#
+# Tags:
+#   hostprep  Install base host packages
+#   k3s       Install k3s and wait for the API
+#   helm      Install Helm and kubectl convenience links
+
+- name: Host preparation
+  hosts: k3s_cluster
+  become: true
+  roles:
+    - { role: "00-host-prep", tags: [hostprep] }
+
+- name: k3s control-plane
+  hosts: server
+  become: true
+  roles:
+    - { role: "01-k3s", vars: { k3s_role: server }, tags: [k3s] }
+
+- name: k3s workers
+  hosts: agents
+  become: true
+  roles:
+    - { role: "01-k3s", vars: { k3s_role: agent }, tags: [k3s] }
+
+- name: Kubernetes client tooling
+  hosts: server
+  become: true
+  roles:
+    - { role: "02-k8s-tools", tags: [helm, tools] }

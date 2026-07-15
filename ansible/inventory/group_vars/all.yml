@@ -1,0 +1,12 @@
+---
+# Committed defaults. Secret or user-specific values belong in generated
+# inventory/group_vars/secrets.yml.
+
+install_k3s: true
+install_helm: true
+
+# k3s/Kubernetes version selection. k3s_version takes precedence when set.
+k3s_channel: "v1.34"
+k3s_version: ""
+k3s_config_dir: /etc/rancher/k3s
+k3s_kubeconfig: /etc/rancher/k3s/k3s.yaml

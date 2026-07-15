@@ -1,0 +1,39 @@
+---
+- name: Wait for k3s API readiness
+  ansible.builtin.command: k3s kubectl get --raw=/readyz
+  register: _k3s_readyz
+  changed_when: false
+  retries: 30
+  delay: 5
+  until: _k3s_readyz.rc == 0
+  when: install_k3s | bool
+
+- name: Link kubectl to k3s kubectl
+  ansible.builtin.file:
+    src: /usr/local/bin/k3s
+    dest: /usr/local/bin/kubectl
+    state: link
+    force: true
+  when: install_k3s | bool
+
+- name: Install Helm 3
+  ansible.builtin.shell: |
+    set -e
+    command -v helm >/dev/null 2>&1 || \
+      curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when: install_helm | bool
+
+- name: Show client versions
+  ansible.builtin.command: "{{ item }}"
+  loop:
+    - kubectl version --client=true
+    - helm version --short
+  register: _client_versions
+  changed_when: false
+
+- name: Print client versions
+  ansible.builtin.debug:
+    var: _client_versions.results | map(attribute='stdout') | list

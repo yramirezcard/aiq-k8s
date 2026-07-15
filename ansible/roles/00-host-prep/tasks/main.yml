@@ -1,0 +1,22 @@
+---
+- name: Install host packages required for k3s and Helm setup
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - git
+      - gnupg
+      - lsb-release
+      - python3
+      - python3-pip
+      - tar
+      - unzip
+    state: present
+    update_cache: true
+  when: ansible_os_family == "Debian"
+
+- name: Ensure /usr/local/bin exists
+  ansible.builtin.file:
+    path: /usr/local/bin
+    state: directory
+    mode: "0755"
