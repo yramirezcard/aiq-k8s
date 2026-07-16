@@ -15,4 +15,6 @@ The wrapper intentionally stays small because Brev setup fields are size-limited
 
 - `K3S_CHANNEL`
 - `K3S_VERSION`
+- `ENABLE_WORKSHOP`
+- `WORKSHOP_PORT`
 - `ANSIBLE_TAGS`

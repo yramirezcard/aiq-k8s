@@ -1,6 +1,6 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # =============================================================================
-# Brev Launchable lifecycle wrapper — aiq-k8s.
+# Brev Launchable lifecycle wrapper - aiq-k8s.
 #
 # Brev's "Code source: GitHub Repo" clones this repository onto the VM before
 # running the setup script. This wrapper locates that clone, writes Launchable

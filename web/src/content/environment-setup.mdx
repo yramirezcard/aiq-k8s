@@ -1,0 +1,16 @@
+The launchable setup script has already prepared the VM for the tutorial.
+
+## Installed by setup
+
+- k3s as a single-node Kubernetes cluster.
+- `kubectl` configured through `/etc/rancher/k3s/k3s.yaml`.
+- Helm 3 for installing the AI-Q chart later.
+- This tutorial UI when `ENABLE_WORKSHOP=true`.
+
+## Useful paths
+
+```bash-ref
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+```
+
+The embedded terminal starts with that kubeconfig so lab commands target the live cluster.

@@ -1,0 +1,19 @@
+Before deploying AI-Q, verify that the launchable cluster is alive.
+
+<Callout type="lab" title="Run this against the real cluster">
+Use the command block below. The "Run in shell" button opens the embedded terminal and sends the command to the VM.
+</Callout>
+
+```bash
+kubectl get nodes
+```
+
+You should see one node with a `Ready` status. That tells you the Kubernetes API is reachable and the k3s node is accepting workloads.
+
+Check Helm too:
+
+```bash
+helm version
+```
+
+If both commands work, the environment is ready for the AI-Q deployment steps.

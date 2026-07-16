@@ -1,0 +1,9 @@
+export KUBECONFIG="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
+export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+alias k=kubectl
+
+echo
+echo "AIQ on Kubernetes lab shell"
+echo "KUBECONFIG=${KUBECONFIG}"
+echo "Try: kubectl get nodes"
+echo
