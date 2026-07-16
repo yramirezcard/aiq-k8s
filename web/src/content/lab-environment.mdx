@@ -1,0 +1,38 @@
+The Brev launchable prepared a small Kubernetes environment for the AI-Q tutorial.
+
+## What is already installed
+
+- A single-node k3s cluster.
+- `kubectl` configured with `/etc/rancher/k3s/k3s.yaml`.
+- Helm 3.
+- This tutorial UI and embedded shell.
+
+Because this lab uses NVIDIA NIM hosted endpoints, no GPUs are required on the launchable VM. The Kubernetes cluster runs the AI-Q application services, while model inference calls leave the cluster and go to NVIDIA hosted endpoints.
+
+## Verify the cluster
+
+Run these checks from the embedded terminal.
+
+### 1. The node is up
+
+The k3s node should be registered with the Kubernetes API and report `Ready`.
+
+```bash
+kubectl get nodes
+```
+
+### 2. The control plane is running
+
+Check the system namespace. You should see the k3s control-plane components and cluster services running.
+
+```bash
+kubectl get pods -n kube-system
+```
+
+### 3. Helm is installed
+
+Helm should report a v3 client. You will use it to install the AI-Q and RAG charts later in the tutorial.
+
+```bash
+helm version
+```

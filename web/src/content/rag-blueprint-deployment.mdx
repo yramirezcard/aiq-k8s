@@ -1,11 +1,77 @@
-This chapter prepares the ground for the RAG-oriented AI-Q blueprint deployment.
+This hands-on section deploys the NVIDIA RAG Blueprint Helm chart.
 
-The first task is to verify that Kubernetes is reachable. After that, the tutorial will layer in the AI-Q chart deployment commands.
+<Callout type="warn" title="Hosted endpoint customization required">
+The upstream RAG Helm guide includes paths for self-hosted NIM services, GPU Operator, NIM Operator, and large model cache storage. For this launchable, edit `custom-values.yaml` so model, embedding, reranking, extraction, and generation endpoints use NVIDIA hosted endpoints instead of locally running NIM services.
+</Callout>
 
-## What to check first
+## 1. Create the namespace
 
-- The Kubernetes API responds.
-- The node is Ready.
-- Helm is available.
+```bash
+kubectl create namespace rag --dry-run=client -o yaml | kubectl apply -f -
+```
 
-The next lesson runs those checks directly against the launchable cluster.
+## 2. Create a custom values file
+
+Start by pulling the default values from the chart archive:
+
+```bash
+helm show values https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
+  --username '$oauthtoken' \
+  --password "$NGC_API_KEY" > rag-custom-values.yaml
+```
+
+Inspect the file:
+
+```bash
+sed -n '1,260p' rag-custom-values.yaml
+```
+
+## 3. Edit values for hosted endpoints
+
+Update `rag-custom-values.yaml` so this deployment uses NVIDIA hosted endpoints instead of locally running NIM services.
+
+Look for values related to:
+
+- LLM generation endpoint
+- embedding endpoint
+- reranking endpoint
+- extraction/OCR/table/graphics endpoints
+- NIM Operator or NIMService sections
+- image pull and NGC API secret settings
+
+The exact keys can change by chart version, so use the rendered defaults as the source of truth:
+
+```bash
+grep -nEi 'nim|endpoint|url|embed|rank|rerank|llm|ingest|extract|ocr|hosted' rag-custom-values.yaml
+```
+
+Do not hard-code API keys directly in the file unless the chart specifically requires it. Prefer the chart's secret settings and `--set` flags for secret values.
+
+## 4. Install the RAG chart
+
+Install the chart with your custom values:
+
+```bash
+helm upgrade --install rag -n rag \
+  https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
+  --username '$oauthtoken' \
+  --password "$NGC_API_KEY" \
+  --set imagePullSecret.password="$NGC_API_KEY" \
+  --set ngcApiSecret.password="$NGC_API_KEY" \
+  -f rag-custom-values.yaml
+```
+
+## 5. Verify RAG
+
+```bash
+kubectl get pods -n rag
+```
+
+```bash
+kubectl get svc -n rag
+```
+
+The services AI-Q will use later are:
+
+- `rag-server` on port `8081`
+- `ingestor-server` on port `8082`

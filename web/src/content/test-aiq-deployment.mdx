@@ -1,0 +1,67 @@
+Use this section to verify that the AI-Q Helm release is running and reachable.
+
+## 1. Verify the installation
+
+```bash
+kubectl get pods -n ns-aiq
+```
+
+Expected shape:
+
+```text
+aiq-backend-...    1/1 Running
+aiq-frontend-...   1/1 Running
+aiq-postgres-...   1/1 Running
+```
+
+Check services:
+
+```bash
+kubectl get svc -n ns-aiq
+```
+
+## 2. Test the backend health check
+
+Open a port-forward to the backend:
+
+```bash
+kubectl port-forward -n ns-aiq svc/aiq-backend 8000:8000 --address 0.0.0.0
+```
+
+In another shell, test the health endpoint:
+
+```bash
+curl -sf http://localhost:8000/health
+```
+
+The backend API docs are available while the port-forward is active:
+
+```text
+http://localhost:8000/docs
+```
+
+## 3. Access the AI-Q web UI
+
+Forward the frontend service:
+
+```bash
+kubectl port-forward -n ns-aiq svc/aiq-frontend 3001:3000 --address 0.0.0.0
+```
+
+Open the Brev launchable endpoint for port `3001`. If you are testing locally, use:
+
+```text
+http://localhost:3001
+```
+
+## 4. Run a meta-response test
+
+From the AI-Q UI, send a simple meta prompt first. The Getting Started notebook demonstrates this kind of first interaction before moving into deeper research.
+
+Try:
+
+```text
+What can you help me with?
+```
+
+You should receive a capabilities-style response rather than a long research report. After that works, try a shallow research question with web search enabled.

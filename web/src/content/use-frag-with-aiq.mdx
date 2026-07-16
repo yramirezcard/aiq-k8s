@@ -1,0 +1,72 @@
+After the RAG Blueprint is running, upgrade AI-Q to use Foundational RAG.
+
+The AI-Q Helm README documents the same-cluster pattern: set `CONFIG_FILE` to the FRAG config and point AI-Q at the RAG server and ingestor service DNS names.
+
+## 1. Create FRAG values for AI-Q
+
+```bash
+cat > aiq-frag-values.yaml <<'EOF'
+aiq:
+  apps:
+    backend:
+      env:
+        CONFIG_FILE: configs/config_web_frag.yml
+        RAG_SERVER_URL: http://rag-server.rag.svc.cluster.local:8081/v1
+        RAG_INGEST_URL: http://ingestor-server.rag.svc.cluster.local:8082/v1
+      imagePullSecrets:
+        - name: ngc-secret
+    frontend:
+      imagePullSecrets:
+        - name: ngc-secret
+EOF
+```
+
+## 2. Upgrade AI-Q
+
+```bash
+helm upgrade --install aiq ./aiq2-web-2.0.0.tgz \
+  -n ns-aiq \
+  --wait --timeout 10m \
+  -f custom-values.yaml \
+  -f aiq-frag-values.yaml
+```
+
+Verify the backend rolls out:
+
+```bash
+kubectl rollout status deployment -n ns-aiq -l component=backend --timeout=5m
+```
+
+```bash
+kubectl get pods -n ns-aiq
+```
+
+## 3. Add a PDF to FRAG
+
+Open the RAG UI by port-forwarding the frontend:
+
+```bash
+kubectl port-forward -n rag svc/rag-frontend 3002:3000 --address 0.0.0.0
+```
+
+Open the Brev launchable endpoint for port `3002`, then upload a PDF through the RAG UI.
+
+If you prefer API testing, port-forward the ingestor:
+
+```bash
+kubectl port-forward -n rag svc/ingestor-server 8082:8082 --address 0.0.0.0
+```
+
+Then use the RAG API documentation for the exact upload endpoint supported by your chart version.
+
+## 4. Test FRAG from the AI-Q UI
+
+Return to the AI-Q UI and ask a question that should require the PDF you uploaded.
+
+Example:
+
+```text
+Using the uploaded document, summarize the main problem, the proposed solution, and any implementation constraints.
+```
+
+The expected behavior is that AI-Q routes the knowledge-backed part of the request through the RAG service and produces an answer grounded in the uploaded PDF.

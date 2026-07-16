@@ -1,0 +1,125 @@
+This hands-on section deploys AI-Q from the NGC Helm chart package.
+
+## Prerequisites
+
+Before running the deployment commands, make sure these values are available in the lab shell:
+
+```bash-ref
+export NGC_API_KEY="<your-ngc-or-nvidia-api-key>"
+export TAVILY_API_KEY="<your-tavily-api-key>"
+```
+
+`NGC_API_KEY` is used to authenticate to NGC and NVIDIA hosted model endpoints. `TAVILY_API_KEY` enables web search for AI-Q research workflows.
+
+<Callout type="warn" title="Keep keys private">
+Do not paste real keys into shared logs or committed files. The commands below read keys from environment variables and store them in Kubernetes secrets.
+</Callout>
+
+## 1. Create the namespace
+
+```bash
+kubectl create namespace ns-aiq
+```
+
+## 2. Create application secrets
+
+The AI-Q Helm docs require a Kubernetes secret named `aiq-credentials`. This lab stores API keys in that secret and keeps database credentials at the tutorial defaults.
+
+```bash
+kubectl create secret generic aiq-credentials -n ns-aiq \
+  --from-literal=NVIDIA_API_KEY="$NGC_API_KEY" \
+  --from-literal=TAVILY_API_KEY="$TAVILY_API_KEY" \
+  --from-literal=DB_USER_NAME="aiq" \
+  --from-literal=DB_USER_PASSWORD="aiq_dev"
+```
+
+Create the NGC image pull secret:
+
+```bash
+kubectl create secret docker-registry ngc-secret -n ns-aiq \
+  --docker-server=nvcr.io \
+  --docker-username='$oauthtoken' \
+  --docker-password="$NGC_API_KEY"
+```
+
+## 3. Pull the AI-Q Helm chart
+
+Pull the chart archive using your NGC API key:
+
+```bash
+helm pull https://helm.ngc.nvidia.com/nvidia/blueprint/charts/aiq2-web-2.0.0.tgz \
+  --username '$oauthtoken' \
+  --password "$NGC_API_KEY"
+```
+
+Confirm the archive exists:
+
+```bash
+ls -lh aiq2-web-2.0.0.tgz
+```
+
+## 4. Inspect default values
+
+Use Helm to render the chart defaults into a local file:
+
+```bash
+helm show values aiq2-web-2.0.0.tgz > custom-values.yaml
+```
+
+Open the file in your editor or inspect it from the terminal:
+
+```bash
+sed -n '1,220p' custom-values.yaml
+```
+
+## 5. Update custom-values.yaml for hosted endpoints
+
+Find any values that point to locally running model, embedding, reranking, VLM, or extraction services and change them to NVIDIA hosted endpoint URLs. In this lab, the application services run in k3s, but model inference should use NVIDIA hosted endpoints.
+
+Look specifically for backend environment values, endpoint URLs, image pull secret configuration, and the selected backend config file. The upstream Helm README documents that the backend can load different configs with `CONFIG_FILE`; the default non-FRAG web config is:
+
+```yaml
+aiq:
+  apps:
+    backend:
+      env:
+        CONFIG_FILE: configs/config_web_default_llamaindex.yml
+```
+
+Also ensure the backend and frontend reference the NGC image pull secret:
+
+```yaml
+aiq:
+  apps:
+    backend:
+      imagePullSecrets:
+        - name: ngc-secret
+    frontend:
+      imagePullSecrets:
+        - name: ngc-secret
+```
+
+<Callout type="tip" title="Keep secrets out of values">
+Do not put raw API keys in `custom-values.yaml`. Keep credentials in Kubernetes secrets and reference them through the chart's secret/env configuration.
+</Callout>
+
+## 6. Install AI-Q
+
+Install the release with your edited values file:
+
+```bash
+helm upgrade --install aiq ./aiq2-web-2.0.0.tgz \
+  -n ns-aiq \
+  --wait --timeout 10m \
+  -f custom-values.yaml
+```
+
+If the install fails, start with events and pod logs:
+
+```bash
+kubectl get events -n ns-aiq --sort-by='.lastTimestamp'
+```
+
+```bash
+kubectl get pods -n ns-aiq
+```

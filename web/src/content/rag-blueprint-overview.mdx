@@ -1,0 +1,17 @@
+The NVIDIA RAG Blueprint is a reference solution for retrieval-augmented generation pipelines.
+
+RAG combines LLM reasoning with retrieval from trusted data sources so generated answers can be grounded in enterprise knowledge. The blueprint includes ingestion, retrieval, reranking, generation, and a reference UI.
+
+## Core ideas
+
+- Ingestion extracts content from documents and stores it in a searchable backend.
+- Retrieval finds relevant chunks from the user's corpus.
+- Reranking can improve result precision before generation.
+- Generation uses the retrieved context to produce grounded answers.
+- The RAG server and ingestor expose APIs that other applications, including AI-Q, can call.
+
+## Why connect RAG to AI-Q
+
+AI-Q can use Foundational RAG as an external knowledge layer. In that mode, AI-Q keeps the agentic research workflow while delegating document-grounded retrieval and ingestion to the RAG Blueprint.
+
+This lab keeps the same principle as the AI-Q deployment: use hosted NVIDIA endpoints where possible so the launchable does not need local GPUs.

@@ -16,7 +16,7 @@ export default function Home() {
       </p>
       <div className="mt-8 flex flex-wrap gap-3">
         <Link href={`/learn/${FIRST_SLUG}`} className="rounded-lg bg-[var(--color-nv)] px-5 py-2.5 font-semibold text-[#06080b] hover:bg-[var(--color-nv-bright)]">Start tutorial</Link>
-        <Link href="/learn/verify-cluster" className="rounded-lg border border-[var(--color-line-2)] px-5 py-2.5 font-semibold hover:border-[var(--color-nv)]">Verify the cluster</Link>
+        <Link href="/learn/lab-environment" className="rounded-lg border border-[var(--color-line-2)] px-5 py-2.5 font-semibold hover:border-[var(--color-nv)]">Inspect the lab</Link>
       </div>
 
       <h2 className="mt-14 text-lg font-bold">Chapters</h2>

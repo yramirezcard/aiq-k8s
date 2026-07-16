@@ -1,0 +1,48 @@
+import aiqArchitecture from "../images/aiq-architecture.png";
+
+The NVIDIA AI-Q Blueprint is an enterprise research-agent reference implementation. It is built on NVIDIA NeMo Agent Toolkit and uses LangChain Deep Agents to support both quick cited answers and longer, report-style research workflows.
+
+<img
+  src={aiqArchitecture.src}
+  alt="AI-Q architecture diagram showing orchestration, shallow research, deep research, tools, and response paths"
+  className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3"
+/>
+
+## What AI-Q provides
+
+AI-Q is more than one chat endpoint. The blueprint combines:
+
+- An orchestration node that classifies user intent and decides whether the request is a meta response, shallow research, or deeper research.
+- A shallow researcher for faster bounded answers with source citation.
+- A deep research workflow for multi-step planning, source gathering, synthesis, and citation-backed report generation.
+- YAML workflow configuration so models, tools, agents, and routing can be changed without rewriting the app.
+- Frontend options including CLI, API, web UI, async jobs, and notebooks.
+- Deployment assets for Docker Compose and Helm.
+
+## What you'll learn
+
+This lab shows how to deploy the AI-Q Blueprint in a Kubernetes setup using Helm. The launchable prepares a k3s cluster and installs the required tooling, then you perform the AI-Q installation step by step from the embedded terminal.
+
+Learning objectives:
+
+- Understand the architecture of the AI-Q Blueprint and the role of each major component.
+- Use Helm charts as the packaging model for production-like Kubernetes deployments.
+- Apply configuration management patterns that enable different data sources and research workflows.
+- Use NVIDIA hosted NIM endpoints to build demos without requiring local GPU resources.
+- Validate that the deployed AI-Q UI and backend are ready for interactive testing.
+
+Kubernetes is the standard platform for production-like deployment of these workloads because it gives you repeatable packaging, service discovery, rollout controls, secret management, and operational hooks for monitoring and scaling.
+
+## Model endpoints
+
+The default AI-Q profiles can use NVIDIA hosted model endpoints through the NVIDIA API Catalog. In that mode inference runs on NVIDIA-hosted infrastructure, so this lab does not require local GPUs.
+
+The AI-Q defaults and optional knowledge-layer paths use these hosted endpoints:
+
+- `nvidia/nemotron-3-nano-30b-a3b` for agents, research workflows, and intent classification;
+- `openai/gpt-oss-120b` for deep research orchestration and planning;
+- `nvidia/nemotron-mini-4b-instruct` for optional document summary tasks;
+- `nvidia/llama-nemotron-embed-vl-1b-v2` for text embedding in LlamaIndex knowledge-layer workflows; and
+- `nvidia/nemotron-nano-12b-v2-vl` for optional vision-language extraction tasks.
+
+Search and retrieval integrations, such as Tavily and the later Foundational RAG section, are configured separately from these model endpoints.
