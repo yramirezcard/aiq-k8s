@@ -24,7 +24,7 @@ envVars:
   APP_EMBEDDINGS_SERVERURL: ""
   APP_RANKING_SERVERURL: ""
   REFLECTION_LLM_SERVERURL: ""
-  APP_VLM_SERVERURL: ""
+  APP_VLM_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
 
   # CPU vector search for the lab environment.
   APP_VECTORSTORE_NAME: "milvus"
@@ -44,7 +44,7 @@ ingestor-server:
     # Empty endpoint URLs instruct the ingestor to use NVIDIA hosted endpoints.
     APP_EMBEDDINGS_SERVERURL: ""
     SUMMARY_LLM_SERVERURL: ""
-    APP_NVINGEST_CAPTIONENDPOINTURL: ""
+    APP_NVINGEST_CAPTIONENDPOINTURL: "https://integrate.api.nvidia.com/v1/chat/completions"
 
     # CPU vector indexing and search for the lab environment.
     APP_VECTORSTORE_NAME: "milvus"
@@ -114,7 +114,10 @@ nv-ingest:
       enabled: false
   envVars:
     EMBEDDING_NIM_ENDPOINT: ""
-    VLM_CAPTION_ENDPOINT: ""
+    # NV-Ingest validates the image caption module at startup even when this
+    # lab keeps image extraction disabled. Keep this as a valid hosted endpoint
+    # so the pipeline can start on CPU-only launchables.
+    VLM_CAPTION_ENDPOINT: "https://integrate.api.nvidia.com/v1/chat/completions"
     COMPONENTS_TO_READY_CHECK: ""
     MAX_INGEST_PROCESS_WORKERS: "2"
     NV_INGEST_MAX_UTIL: "2"

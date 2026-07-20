@@ -43,7 +43,7 @@ cat manifests/rag-values.yaml
 
 The important settings are:
 
-- Hosted endpoints: model server URL fields such as `APP_LLM_SERVERURL`, `APP_EMBEDDINGS_SERVERURL`, and `APP_RANKING_SERVERURL` are set to empty strings. The RAG services then use NVIDIA hosted endpoints instead of in-cluster NIM services.
+- Hosted endpoints: model server URL fields such as `APP_LLM_SERVERURL`, `APP_EMBEDDINGS_SERVERURL`, and `APP_RANKING_SERVERURL` are set to empty strings where the chart interprets that as NVIDIA hosted endpoint usage. The VLM caption endpoint is set explicitly because NV-Ingest validates that module at startup.
 - Local NIM services disabled: the `nimOperator` overrides disable local model-serving pods so the lab does not require GPUs or large model caches.
 - CPU vector database path: `APP_VECTORSTORE_ENABLEGPUSEARCH` and `APP_VECTORSTORE_ENABLEGPUINDEX` are set to `False`, and the Milvus image is set to the CPU image tag.
 - Text-focused ingestion: table, chart, image, and infographic extraction are disabled so the launchable can focus on document text ingestion without requiring extraction NIMs.
@@ -130,6 +130,14 @@ If you see `Insufficient cpu` or `Insufficient memory` for `rag-nv-ingest`, the 
 ```bash
 helm get values rag -n rag --all | grep -nE "nv-ingest:|resources:|MAX_INGEST_PROCESS_WORKERS|NV_INGEST_MAX_UTIL|PDF_SPLIT_PAGE_COUNT" -A12 -B2
 ```
+
+If `rag-nv-ingest` enters `CrashLoopBackOff` with an `ImageCaptionExtractionSchema` error such as `endpoint_url Input should be a valid string`, the VLM caption endpoint was rendered as `None`. Confirm the deployed environment:
+
+```bash
+kubectl get deploy rag-nv-ingest -n rag -o yaml | grep -nE "VLM_CAPTION_ENDPOINT|APP_NVINGEST_CAPTIONENDPOINTURL|APP_VLM_SERVERURL" -A2 -B2
+```
+
+The lab values should set those endpoint values to `https://integrate.api.nvidia.com/v1/chat/completions`.
 
 Then reapply the lab values:
 
