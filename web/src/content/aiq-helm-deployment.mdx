@@ -98,7 +98,7 @@ helm show values aiq2-web-2.0.0.tgz | sed -n '1,220p'
 Start by inspecting the backend environment values from the chart defaults. The backend loads its AI-Q workflow configuration from the `CONFIG_FILE` environment variable:
 
 ```bash
-helm show values aiq2-web-2.0.0.tgz | grep -n -A8 -B4 "CONFIG_FILE"
+helm show values aiq2-web-2.0.0.tgz | grep -B4 "CONFIG_FILE"
 ```
 
 You should see the default non-FRAG web config:
@@ -112,6 +112,8 @@ aiq:
 ```
 
 The Helm chart tells the backend which config file to load, but the config file itself is not stored as a standalone file in the chart archive. `CONFIG_FILE` is resolved inside the running backend container. A value such as `configs/config_web_default_llamaindex.yml` points to a file packaged in the backend image, not to GitHub and not to your local laptop filesystem.
+
+The source repository publishes the packaged config examples under [`configs/`](https://github.com/NVIDIA-AI-Blueprints/aiq/tree/develop/configs), which is useful for reading and comparing the content of files such as `config_web_default_llamaindex.yml`.
 
 To use a local custom config, you must first mount that file into the backend pod, then set `CONFIG_FILE` to the mounted path. Part IV shows that pattern with a Kubernetes ConfigMap and Helm values.
 
@@ -135,22 +137,6 @@ After AI-Q is installed, confirm which `CONFIG_FILE` value the backend received 
 kubectl get deploy aiq-backend -n ns-aiq \
   -o jsonpath='{.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="CONFIG_FILE")].value}{"\n"}'
 ```
-
-The backend image does not include a shell, so `kubectl exec ... sh` is expected to fail. For packaged configs, use the open source reference to inspect the file content. The file used by this lab is [`configs/config_web_default_llamaindex.yml`](https://github.com/NVIDIA-AI-Blueprints/aiq/blob/develop/configs/config_web_default_llamaindex.yml).
-
-If you need to inspect the file inside the running pod, use an ephemeral debug container that can look at the backend container filesystem:
-
-```bash
-CONFIG_FILE="$(kubectl get deploy aiq-backend -n ns-aiq \
-  -o jsonpath='{.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="CONFIG_FILE")].value}')"
-POD="$(kubectl get pod -n ns-aiq -l component=backend -o jsonpath='{.items[0].metadata.name}')"
-
-kubectl debug -n ns-aiq "$POD" \
-  --image=busybox:1.36 --target=backend -- \
-  sh -c "case '$CONFIG_FILE' in /*) f=/proc/1/root'$CONFIG_FILE';; *) f=/proc/1/cwd/'$CONFIG_FILE';; esac; sed -n '1,220p' \"\$f\""
-```
-
-The debug-container command reads through `/proc/1` because the backend container itself does not provide shell utilities.
 
 That config file is the AI-Q workflow definition for the backend. The main sections to understand are:
 

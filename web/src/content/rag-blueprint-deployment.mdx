@@ -95,7 +95,7 @@ The services AI-Q will use later are:
 - `rag-server` on port `8081`
 - `ingestor-server` on port `8082`
 - `rag-frontend` on port `3000`, exposed through Envoy at `/rag`
-- Envoy browser-facing API paths `/rag-api` and `/rag-ingest`, which forward to the in-cluster RAG server and ingestor APIs
+- Envoy browser-facing `/api/...` paths, which forward selected RAG UI requests to the in-cluster RAG server and ingestor APIs
 
 Verify the Envoy route:
 
@@ -103,9 +103,9 @@ Verify the Envoy route:
 kubectl get httproute -n rag rag-frontend
 ```
 
-Open the same Brev launchable endpoint you use for AI-Q on port `3001`, then add `/rag` to the URL path. The tutorial UI remains on port `3000`; Envoy serves application frontends from port `3001` and path-routes `/aiq` to AI-Q and `/rag` to the RAG frontend.
+Open the same Brev launchable endpoint you use for AI-Q on port `3001`, then add `/rag` to the URL path. The tutorial UI remains on port `3000`; Envoy serves application frontends from port `3001`. The `/rag` path is an entry point to the RAG UI and redirects to the RAG frontend root on the same Envoy port.
 
-The RAG frontend is a Vite app, so it also loads root-level static assets such as `/assets/...`. The lab Envoy route handles those asset requests and forwards public API calls from `/rag-api` and `/rag-ingest` to the Kubernetes services.
+The RAG frontend is a Vite app using root-level routes and assets. The lab Envoy route handles `/`, `/settings`, `/collections`, `/assets/...`, and the RAG-specific `/api/...` calls needed by the browser. Those specific `/api/...` matches are required because AI-Q also uses root-level `/api` paths on the same Envoy host.
 
 Check rollout status for the main services:
 
@@ -199,18 +199,6 @@ Then check the ingestor server:
 kubectl run rag-ingestor-healthcheck -n rag --rm -i --restart=Never \
   --image=curlimages/curl:8.10.1 -- \
   curl -sf http://ingestor-server:8082/health
-```
-
-If the temporary pod cannot pull `curlimages/curl`, use the RAG server pod itself for the service-to-service check:
-
-```bash
-kubectl exec -n rag deploy/rag-server -- \
-  python - <<'PY'
-import urllib.request
-for url in ("http://rag-server:8081/health", "http://ingestor-server:8082/health"):
-    with urllib.request.urlopen(url, timeout=10) as r:
-        print(url, r.status)
-PY
 ```
 
 Expected result: each endpoint returns HTTP `200` or a successful health response.

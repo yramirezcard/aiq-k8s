@@ -68,9 +68,9 @@ frontend:
     type: ClusterIP
   envVars:
     - name: VITE_API_CHAT_URL
-      value: "/rag-api"
+      value: "http://rag-server:8081/v1"
     - name: VITE_API_VDB_URL
-      value: "/rag-ingest"
+      value: "http://ingestor-server:8082/v1"
     - name: VITE_MILVUS_URL
       value: "http://milvus:19530"
 

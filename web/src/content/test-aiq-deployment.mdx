@@ -28,23 +28,16 @@ kubectl get svc -n ns-aiq
 
 ## 2. Test the backend health check
 
-Open a port-forward to the backend:
+Run the health check from inside the cluster with a temporary curl pod. This avoids using `kubectl port-forward`, which would block the embedded terminal.
 
 ```bash
-kubectl port-forward -n ns-aiq svc/aiq-backend 8000:8000 --address 0.0.0.0
+kubectl run aiq-backend-healthcheck -n ns-aiq --rm -i --restart=Never \
+  --image=curlimages/curl:8.10.1 -- \
+  curl -sf http://aiq-backend:8000/health
 ```
 
-In another shell, test the health endpoint:
+Expected result: the command exits successfully and prints the backend health response.
 
-```bash
-curl -sf http://localhost:8000/health
-```
-
-The backend API docs are available while the port-forward is active:
-
-```text
-http://localhost:8000/docs
-```
 
 ## 3. Access the AI-Q web UI
 

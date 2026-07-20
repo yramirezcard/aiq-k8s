@@ -28,5 +28,3 @@ rag_server_service_port: 8081
 rag_ingestor_service: ingestor-server
 rag_ingestor_service_port: 8082
 rag_route_path: /rag
-rag_api_route_path: /rag-api
-rag_ingestor_route_path: /rag-ingest

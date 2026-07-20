@@ -9,35 +9,37 @@ spec:
       namespace: {{ envoy_gateway_ns }}
       sectionName: web
   rules:
+    # The packaged RAG frontend uses BrowserRouter with routes rooted at "/".
+    # It does not expose a runtime basename setting, so /rag is a friendly entry
+    # point that redirects the browser to the RAG root on the Envoy app port.
     - matches:
         - path:
             type: Exact
             value: "{{ rag_route_path }}"
+        - path:
+            type: Exact
+            value: "{{ rag_route_path }}/"
       filters:
         - type: RequestRedirect
           requestRedirect:
             path:
               type: ReplaceFullPath
-              replaceFullPath: "{{ rag_route_path }}/"
+              replaceFullPath: /
             statusCode: 302
-    # The RAG frontend is served as a root-path Vite app. Keep the visible lab
-    # path at /rag, but strip that prefix before forwarding to the frontend.
     - matches:
         - path:
+            type: Exact
+            value: "/"
+        - path:
             type: PathPrefix
-            value: "{{ rag_route_path }}/"
-      filters:
-        - type: URLRewrite
-          urlRewrite:
-            path:
-              type: ReplacePrefixMatch
-              replacePrefixMatch: /
+            value: "/settings"
+        - path:
+            type: PathPrefix
+            value: "/collections"
       backendRefs:
         - name: {{ rag_frontend_service }}
           port: {{ rag_frontend_service_port }}
-    # Vite emits root-level asset URLs such as /assets/..., even when the first
-    # page was reached through /rag. Route those assets to the RAG frontend so
-    # the UI does not fall through to Envoy's 404.
+    # Vite emits root-level asset URLs such as /assets/....
     - matches:
         - path:
             type: PathPrefix
@@ -45,31 +47,109 @@ spec:
       backendRefs:
         - name: {{ rag_frontend_service }}
           port: {{ rag_frontend_service_port }}
-    # Browser API calls use public path prefixes; Envoy rewrites them to the
-    # in-cluster RAG service APIs.
+    # RAG frontend browser calls are hardcoded to /api/... paths. Use specific
+    # matches so these win over AI-Q's broader /api frontend route.
     - matches:
         - path:
             type: PathPrefix
-            value: "{{ rag_api_route_path }}"
+            value: "/api/generate"
       filters:
         - type: URLRewrite
           urlRewrite:
             path:
               type: ReplacePrefixMatch
-              replacePrefixMatch: /v1
+              replacePrefixMatch: /v1/generate
       backendRefs:
         - name: {{ rag_server_service }}
           port: {{ rag_server_service_port }}
     - matches:
         - path:
             type: PathPrefix
-            value: "{{ rag_ingestor_route_path }}"
+            value: "/api/configuration"
       filters:
         - type: URLRewrite
           urlRewrite:
             path:
               type: ReplacePrefixMatch
-              replacePrefixMatch: /v1
+              replacePrefixMatch: /v1/configuration
+      backendRefs:
+        - name: {{ rag_server_service }}
+          port: {{ rag_server_service_port }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/api/summary"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /v1/summary
+      backendRefs:
+        - name: {{ rag_server_service }}
+          port: {{ rag_server_service_port }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/api/collections"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /v1/collections
+      backendRefs:
+        - name: {{ rag_ingestor_service }}
+          port: {{ rag_ingestor_service_port }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/api/collection"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /v1/collection
+      backendRefs:
+        - name: {{ rag_ingestor_service }}
+          port: {{ rag_ingestor_service_port }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/api/documents"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /v1/documents
+      backendRefs:
+        - name: {{ rag_ingestor_service }}
+          port: {{ rag_ingestor_service_port }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/api/status"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /v1/status
+      backendRefs:
+        - name: {{ rag_ingestor_service }}
+          port: {{ rag_ingestor_service_port }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/api/health"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /v1/health
       backendRefs:
         - name: {{ rag_ingestor_service }}
           port: {{ rag_ingestor_service_port }}
