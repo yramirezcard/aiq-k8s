@@ -13,6 +13,7 @@ The key settings are:
 - `CONFIG_FILE: configs/config_web_frag.yml` selects the AI-Q backend workflow that knows how to use FRAG.
 - `RAG_SERVER_URL` points AI-Q to the RAG query service inside the cluster.
 - `RAG_INGEST_URL` points AI-Q to the RAG ingestion service inside the cluster.
+- `COLLECTION_NAME` tells AI-Q which RAG collection to query when it uses the Knowledge Base data source.
 
 ## 2. Confirm RAG service DNS
 
@@ -26,7 +27,7 @@ The expected in-cluster URLs are:
 
 ```text
 http://rag-server.rag.svc.cluster.local:8081/v1
-http://ingestor-server.rag.svc.cluster.local:8082/v1
+http://ingestor-server.rag.svc.cluster.local:8082
 ```
 
 ## 3. Upgrade AI-Q
@@ -51,7 +52,7 @@ Confirm the backend received the FRAG environment variables:
 
 ```bash
 kubectl get deploy aiq-backend -n ns-aiq \
-  -o jsonpath='CONFIG_FILE={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="CONFIG_FILE")].value}{"\n"}RAG_SERVER_URL={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="RAG_SERVER_URL")].value}{"\n"}RAG_INGEST_URL={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="RAG_INGEST_URL")].value}{"\n"}'
+  -o jsonpath='CONFIG_FILE={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="CONFIG_FILE")].value}{"\n"}RAG_SERVER_URL={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="RAG_SERVER_URL")].value}{"\n"}RAG_INGEST_URL={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="RAG_INGEST_URL")].value}{"\n"}COLLECTION_NAME={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="COLLECTION_NAME")].value}{"\n"}'
 ```
 
 ## 4. Add a document to FRAG
@@ -60,10 +61,23 @@ Open the RAG UI from the Brev endpoint for port `3001` with the `/rag` path, the
 
 This uses the same Envoy Gateway entry point as AI-Q. Envoy routes `/aiq` to the AI-Q frontend and `/rag` to the RAG frontend, so you do not need a separate frontend port-forward for normal browser access.
 
+Make sure the RAG collection name matches the `COLLECTION_NAME` value used by AI-Q. This lab uses `default`:
+
+```bash
+kubectl run rag-collections-check -n rag --rm -i --restart=Never \
+  --image=curlimages/curl:8.10.1 -- \
+  sh -c 'curl -sS -w "\nHTTP %{http_code}\n" http://ingestor-server:8082/collections'
+```
+
+If you uploaded the document to a different collection, either upload it again to `default` or update `COLLECTION_NAME` in `manifests/aiq-frag-values.yaml` and upgrade AI-Q again. For example, if your populated collection is named `test`, set `COLLECTION_NAME: test`.
 
 ## 5. Test FRAG from the AI-Q UI
 
-Return to the AI-Q UI at the Brev endpoint for port `3001` with the `/aiq` path. Ask a question that should require the PDF you uploaded.
+Return to the AI-Q UI at the Brev endpoint for port `3001` with the `/aiq` path. Open **Data Sources** before asking the question.
+
+In the drawer, **Connections** can show only connection-style sources such as Web Search. The document-backed Knowledge Base is represented through the **Files** tab and the backend collection configured by `COLLECTION_NAME`.
+
+To force a FRAG-style test, turn off **Web Search**, open **Files**, and use a prompt that explicitly asks about the uploaded document.
 
 Example:
 

@@ -8,4 +8,5 @@ aiq:
       env:
         CONFIG_FILE: configs/config_web_frag.yml
         RAG_SERVER_URL: http://rag-server.rag.svc.cluster.local:8081/v1
-        RAG_INGEST_URL: http://ingestor-server.rag.svc.cluster.local:8082/v1
+        RAG_INGEST_URL: http://ingestor-server.rag.svc.cluster.local:8082
+        COLLECTION_NAME: default
