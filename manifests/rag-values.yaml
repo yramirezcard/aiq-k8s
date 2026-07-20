@@ -17,14 +17,17 @@ apiKeysSecret:
   name: rag-api-keys
 
 envVars:
-  # Empty server URLs instruct the RAG server to use NVIDIA hosted endpoints.
+  # Empty model server URLs instruct the RAG services to use NVIDIA hosted
+  # endpoints. Model names stay aligned with the RAG Helm chart v2.5.0 defaults.
   APP_LLM_SERVERURL: ""
   APP_QUERYREWRITER_SERVERURL: ""
   APP_FILTEREXPRESSIONGENERATOR_SERVERURL: ""
   APP_EMBEDDINGS_SERVERURL: ""
+  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
   APP_RANKING_SERVERURL: ""
+  APP_RANKING_MODELNAME: "nvidia/llama-nemotron-rerank-1b-v2"
   REFLECTION_LLM_SERVERURL: ""
-  APP_VLM_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  APP_VLM_SERVERURL: ""
 
   # CPU vector search for the lab environment.
   APP_VECTORSTORE_NAME: "milvus"
@@ -41,8 +44,9 @@ ingestor-server:
       cpu: "2"
       memory: "4Gi"
   envVars:
-    # Empty endpoint URLs instruct the ingestor to use NVIDIA hosted endpoints.
+    # Empty means NVIDIA hosted endpoint usage in the v2.5.0 RAG services.
     APP_EMBEDDINGS_SERVERURL: ""
+    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
     SUMMARY_LLM_SERVERURL: ""
     APP_NVINGEST_CAPTIONENDPOINTURL: "https://integrate.api.nvidia.com/v1/chat/completions"
 
@@ -62,6 +66,13 @@ ingestor-server:
 frontend:
   service:
     type: ClusterIP
+  envVars:
+    - name: VITE_API_CHAT_URL
+      value: "/rag-api"
+    - name: VITE_API_VDB_URL
+      value: "/rag-ingest"
+    - name: VITE_MILVUS_URL
+      value: "http://milvus:19530"
 
 nimOperator:
   nim-llm:
@@ -82,6 +93,9 @@ nimOperator:
     enabled: false
 
 nv-ingest:
+  image:
+    repository: "nvcr.io/nvidia/nemo-microservices/nv-ingest"
+    tag: "26.3.0"
   # The upstream NV-Ingest chart defaults are intended for much larger systems
   # and request 24 CPUs / 24 GiB memory. This lab targets a single 8 CPU / 32 GiB
   # Brev VM, so keep ingestion text-focused and resource requests modest.
@@ -113,7 +127,10 @@ nv-ingest:
     ocr:
       enabled: false
   envVars:
-    EMBEDDING_NIM_ENDPOINT: ""
+    # NV-Ingest validates the text embedding module at startup. Use the hosted
+    # NVIDIA embeddings endpoint so the pipeline starts without in-cluster NIMs.
+    EMBEDDING_NIM_ENDPOINT: "https://integrate.api.nvidia.com/v1"
+    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-1b-v2"
     # NV-Ingest validates the image caption module at startup even when this
     # lab keeps image extraction disabled. Keep this as a valid hosted endpoint
     # so the pipeline can start on CPU-only launchables.

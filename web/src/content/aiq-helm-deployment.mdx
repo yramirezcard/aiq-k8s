@@ -85,7 +85,7 @@ The provided `manifests/aiq-values.yaml` is the values file you will pass to Hel
 cat manifests/aiq-values.yaml
 ```
 
-The file contains the launchable-specific overrides used by this tutorial, including image pull secret configuration for the AI-Q application components and a frontend service port of `3001`. The setup script exposes the UI through Envoy Gateway at `/aiq` using a real low host port for Brev.
+The file contains the launchable-specific overrides used by this tutorial, including image pull secret configuration for the AI-Q application components. The AI-Q frontend service keeps the chart's default port `3000`; the setup script exposes the UI externally through Envoy Gateway on host port `3001` at `/aiq`.
 
 You can still inspect the chart defaults for comparison:
 

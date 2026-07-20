@@ -66,5 +66,7 @@
         msg:
           - "AI-Q frontend route: {{ aiq_route_path }} -> {{ aiq_frontend_service }}.{{ aiq_namespace }}:{{ aiq_frontend_service_port }}"
           - "RAG frontend route: {{ rag_route_path }} -> {{ rag_frontend_service }}.{{ rag_namespace }}:{{ rag_frontend_service_port }}"
+          - "RAG API route: {{ rag_api_route_path }} -> {{ rag_server_service }}.{{ rag_namespace }}:{{ rag_server_service_port }}"
+          - "RAG ingest route: {{ rag_ingestor_route_path }} -> {{ rag_ingestor_service }}.{{ rag_namespace }}:{{ rag_ingestor_service_port }}"
           - "Envoy web NodePort: {{ envoy_web_nodeport }}"
           - "setup.sh publishes Envoy as a real host socket for Brev."

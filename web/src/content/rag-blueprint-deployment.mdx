@@ -27,7 +27,7 @@ kubectl create namespace rag
 Start by looking at the upstream chart defaults. This helps you see what the lab override file is changing.
 
 ```bash
-helm show values https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
+helm show values https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.5.0.tgz \
   --username '$oauthtoken' \
   --password "$NGC_API_KEY" | sed -n '1,220p'
 ```
@@ -43,7 +43,8 @@ cat manifests/rag-values.yaml
 
 The important settings are:
 
-- Hosted endpoints: model server URL fields such as `APP_LLM_SERVERURL`, `APP_EMBEDDINGS_SERVERURL`, and `APP_RANKING_SERVERURL` are set to empty strings where the chart interprets that as NVIDIA hosted endpoint usage. The VLM caption endpoint is set explicitly because NV-Ingest validates that module at startup.
+- Hosted endpoints: for the RAG `v2.5.0` services, empty model server URL fields mean "use NVIDIA hosted endpoints" instead of in-cluster NIM services. The NV-Ingest runtime is stricter, so the lab sets `EMBEDDING_NIM_ENDPOINT` explicitly to the hosted embeddings base URL.
+- RAG `v2.5.0` model names: the lab uses the `v2.5.0` default hosted models that are currently available: `APP_EMBEDDINGS_MODELNAME` and `EMBEDDING_NIM_MODEL_NAME` use `nvidia/llama-nemotron-embed-1b-v2`, and `APP_RANKING_MODELNAME` uses `nvidia/llama-nemotron-rerank-1b-v2`.
 - Local NIM services disabled: the `nimOperator` overrides disable local model-serving pods so the lab does not require GPUs or large model caches.
 - CPU vector database path: `APP_VECTORSTORE_ENABLEGPUSEARCH` and `APP_VECTORSTORE_ENABLEGPUINDEX` are set to `False`, and the Milvus image is set to the CPU image tag.
 - Text-focused ingestion: table, chart, image, and infographic extraction are disabled so the launchable can focus on document text ingestion without requiring extraction NIMs.
@@ -56,7 +57,7 @@ Install the chart with the lab values file:
 
 ```bash
 helm upgrade --install rag -n rag \
-  https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
+  https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.5.0.tgz \
   --username '$oauthtoken' \
   --password "$NGC_API_KEY" \
   --set imagePullSecret.password="$NGC_API_KEY" \
@@ -94,6 +95,7 @@ The services AI-Q will use later are:
 - `rag-server` on port `8081`
 - `ingestor-server` on port `8082`
 - `rag-frontend` on port `3000`, exposed through Envoy at `/rag`
+- Envoy browser-facing API paths `/rag-api` and `/rag-ingest`, which forward to the in-cluster RAG server and ingestor APIs
 
 Verify the Envoy route:
 
@@ -102,6 +104,8 @@ kubectl get httproute -n rag rag-frontend
 ```
 
 Open the same Brev launchable endpoint you use for AI-Q on port `3001`, then add `/rag` to the URL path. The tutorial UI remains on port `3000`; Envoy serves application frontends from port `3001` and path-routes `/aiq` to AI-Q and `/rag` to the RAG frontend.
+
+The RAG frontend is a Vite app, so it also loads root-level static assets such as `/assets/...`. The lab Envoy route handles those asset requests and forwards public API calls from `/rag-api` and `/rag-ingest` to the Kubernetes services.
 
 Check rollout status for the main services:
 
@@ -131,19 +135,42 @@ If you see `Insufficient cpu` or `Insufficient memory` for `rag-nv-ingest`, the 
 helm get values rag -n rag --all | grep -nE "nv-ingest:|resources:|MAX_INGEST_PROCESS_WORKERS|NV_INGEST_MAX_UTIL|PDF_SPLIT_PAGE_COUNT" -A12 -B2
 ```
 
-If `rag-nv-ingest` enters `CrashLoopBackOff` with an `ImageCaptionExtractionSchema` error such as `endpoint_url Input should be a valid string`, the VLM caption endpoint was rendered as `None`. Confirm the deployed environment:
+If `rag-nv-ingest` enters `CrashLoopBackOff` with an `ImageCaptionExtractionSchema` error such as `endpoint_url Input should be a valid string`, or a `TextEmbeddingSchema` error such as `embedding_nim_endpoint Input should be a valid string`, an NV-Ingest endpoint was rendered as `None`. Confirm the deployed environment:
 
 ```bash
-kubectl get deploy rag-nv-ingest -n rag -o yaml | grep -nE "VLM_CAPTION_ENDPOINT|APP_NVINGEST_CAPTIONENDPOINTURL|APP_VLM_SERVERURL" -A2 -B2
+kubectl get deploy rag-nv-ingest -n rag -o yaml | grep -nE "EMBEDDING_NIM_ENDPOINT|EMBEDDING_NIM_MODEL_NAME|VLM_CAPTION_ENDPOINT|APP_NVINGEST_CAPTIONENDPOINTURL|APP_VLM_SERVERURL" -A2 -B2
 ```
 
-The lab values should set those endpoint values to `https://integrate.api.nvidia.com/v1/chat/completions`.
+The lab values should set `EMBEDDING_NIM_ENDPOINT` to the base URL `https://integrate.api.nvidia.com/v1` and `VLM_CAPTION_ENDPOINT` to `https://integrate.api.nvidia.com/v1/chat/completions`.
+
+If ingestion fails with a URL like `https://integrate.api.nvidia.com/v1/embeddings/embeddings`, the endpoint was configured with the operation path included. Use the base `/v1` URL instead.
+
+If ingestion fails with `410 Client Error: Gone for url: https://integrate.api.nvidia.com/v1/embeddings`, the endpoint is reachable but the hosted service rejected the embedding request. First confirm that the deployed pod has the RAG `v2.5.0` model name:
+
+```bash
+kubectl get deploy rag-nv-ingest -n rag -o jsonpath='{range .spec.template.spec.containers[*].env[*]}{.name}={.value}{"\n"}{end}' | \
+  grep -E "EMBEDDING_NIM_MODEL_NAME|EMBEDDING_NIM_ENDPOINT"
+```
+
+Expected values:
+
+```text
+EMBEDDING_NIM_ENDPOINT=https://integrate.api.nvidia.com/v1
+EMBEDDING_NIM_MODEL_NAME=nvidia/llama-nemotron-embed-1b-v2
+```
+
+Also check the RAG server and ingestor model settings:
+
+```bash
+kubectl get deploy -n rag rag-server ingestor-server -o jsonpath='{range .items[*]}{"\n"}{.metadata.name}{"\n"}{range .spec.template.spec.containers[*].env[*]}{.name}={.value}{"\n"}{end}{end}' | \
+  grep -E "rag-server|ingestor-server|APP_EMBEDDINGS_MODELNAME|APP_RANKING_MODELNAME|APP_EMBEDDINGS_SERVERURL|APP_RANKING_SERVERURL"
+```
 
 Then reapply the lab values:
 
 ```bash
 helm upgrade --install rag -n rag \
-  https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
+  https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.5.0.tgz \
   --username '$oauthtoken' \
   --password "$NGC_API_KEY" \
   --set imagePullSecret.password="$NGC_API_KEY" \
@@ -188,4 +215,4 @@ PY
 
 Expected result: each endpoint returns HTTP `200` or a successful health response.
 
-Source reference: [Deploy NVIDIA RAG Blueprint on Kubernetes with Helm](https://docs.nvidia.com/rag/2.4.0/deploy-helm.html).
+Source reference: [Deploy NVIDIA RAG Blueprint on Kubernetes with Helm](https://docs.nvidia.com/rag/2.5.0/deploy-helm.html).

@@ -11,8 +11,21 @@ spec:
   rules:
     - matches:
         - path:
-            type: PathPrefix
+            type: Exact
             value: "{{ rag_route_path }}"
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: "{{ rag_route_path }}/"
+            statusCode: 302
+    # The RAG frontend is served as a root-path Vite app. Keep the visible lab
+    # path at /rag, but strip that prefix before forwarding to the frontend.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "{{ rag_route_path }}/"
       filters:
         - type: URLRewrite
           urlRewrite:
@@ -22,3 +35,41 @@ spec:
       backendRefs:
         - name: {{ rag_frontend_service }}
           port: {{ rag_frontend_service_port }}
+    # Vite emits root-level asset URLs such as /assets/..., even when the first
+    # page was reached through /rag. Route those assets to the RAG frontend so
+    # the UI does not fall through to Envoy's 404.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/assets"
+      backendRefs:
+        - name: {{ rag_frontend_service }}
+          port: {{ rag_frontend_service_port }}
+    # Browser API calls use public path prefixes; Envoy rewrites them to the
+    # in-cluster RAG service APIs.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "{{ rag_api_route_path }}"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /v1
+      backendRefs:
+        - name: {{ rag_server_service }}
+          port: {{ rag_server_service_port }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "{{ rag_ingestor_route_path }}"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /v1
+      backendRefs:
+        - name: {{ rag_ingestor_service }}
+          port: {{ rag_ingestor_service_port }}
