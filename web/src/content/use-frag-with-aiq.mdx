@@ -55,13 +55,17 @@ kubectl get deploy aiq-backend -n ns-aiq \
   -o jsonpath='CONFIG_FILE={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="CONFIG_FILE")].value}{"\n"}RAG_SERVER_URL={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="RAG_SERVER_URL")].value}{"\n"}RAG_INGEST_URL={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="RAG_INGEST_URL")].value}{"\n"}COLLECTION_NAME={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="COLLECTION_NAME")].value}{"\n"}'
 ```
 
-## 4. Add a document to FRAG
+## 4. Inspect the RAG collections
 
-Open the RAG UI from the Brev endpoint for port `3001` with the `/rag` path, then upload a PDF through the RAG UI. The `/rag` path is the entry point; the browser may redirect to the RAG frontend root on the same Envoy port because the packaged RAG UI is built with root-level routes.
+AI-Q uses `RAG_INGEST_URL` for file and collection operations. When you upload a file from the AI-Q UI **Files** tab, the AI-Q backend sends that upload to the RAG ingestor service at `RAG_INGEST_URL`.
 
-This uses the same Envoy Gateway entry point as AI-Q. Envoy routes `/aiq` to the AI-Q frontend and `/rag` to the RAG frontend, so you do not need a separate frontend port-forward for normal browser access.
+In this lab, `RAG_INGEST_URL` points to:
 
-Make sure the RAG collection name matches the `COLLECTION_NAME` value used by AI-Q. This lab uses `default`:
+```text
+http://ingestor-server.rag.svc.cluster.local:8082
+```
+
+Before uploading a file, inspect the collections currently known by the RAG ingestor:
 
 ```bash
 kubectl run rag-collections-check -n rag --rm -i --restart=Never \
@@ -69,15 +73,26 @@ kubectl run rag-collections-check -n rag --rm -i --restart=Never \
   sh -c 'curl -sS -w "\nHTTP %{http_code}\n" http://ingestor-server:8082/collections'
 ```
 
-If you uploaded the document to a different collection, either upload it again to `default` or update `COLLECTION_NAME` in `manifests/aiq-frag-values.yaml` and upgrade AI-Q again. For example, if your populated collection is named `test`, set `COLLECTION_NAME: test`.
+The collection queried by AI-Q is controlled by `COLLECTION_NAME`. This lab uses `default`:
+
+```text
+COLLECTION_NAME=default
+```
+
+If you want AI-Q to query a different populated collection, update `COLLECTION_NAME` in `manifests/aiq-frag-values.yaml` and upgrade AI-Q again.
 
 ## 5. Test FRAG from the AI-Q UI
 
-Return to the AI-Q UI at the Brev endpoint for port `3001` with the `/aiq` path. Open **Data Sources** before asking the question.
+Return to the AI-Q UI at the Brev endpoint for port `3001` with the `/aiq` path.
 
-In the drawer, **Connections** can show only connection-style sources such as Web Search. The document-backed Knowledge Base is represented through the **Files** tab and the backend collection configured by `COLLECTION_NAME`.
+Follow this sequence:
 
-To force a FRAG-style test, turn off **Web Search**, open **Files**, and use a prompt that explicitly asks about the uploaded document.
+1. Open **Data Sources**.
+2. In **Connections**, disable **Web Search**.
+3. Open the **Files** tab.
+4. Upload a PDF or text document from the AI-Q UI.
+5. Wait until ingestion finishes.
+6. Ask a question that can only be answered from the uploaded file.
 
 Example:
 
@@ -85,7 +100,25 @@ Example:
 Using the uploaded document, summarize the main problem, the proposed solution, and any implementation constraints.
 ```
 
-This is a good FRAG test because AI-Q should need the document corpus rather than a general web answer. The expected behavior is that AI-Q routes the knowledge-backed part of the request through the RAG service and produces an answer grounded in the uploaded PDF.
+This is a good FRAG test because AI-Q should need the document corpus rather than a general web answer. While the model is thinking, the selected data source should mention the uploaded file name or file-backed knowledge source instead of only **Web Search**.
+
+After upload, inspect the collections again. You should see the collection used by AI-Q and the uploaded file counted in its metadata:
+
+```bash
+kubectl run rag-collections-after-upload -n rag --rm -i --restart=Never \
+  --image=curlimages/curl:8.10.1 -- \
+  sh -c 'curl -sS -w "\nHTTP %{http_code}\n" http://ingestor-server:8082/collections'
+```
+
+To inspect which document-related routes this ingestor exposes:
+
+```bash
+kubectl run rag-documents-check -n rag --rm -i --restart=Never \
+  --image=curlimages/curl:8.10.1 -- \
+  sh -c 'curl -sS http://ingestor-server:8082/openapi.json | grep -o "\"/[^\"]*documents[^\"]*\"" | sort -u'
+```
+
+Use the collection metadata from `/collections` as the primary verification signal. A successful upload should increase `number_of_files`, `total_elements`, or `num_entities` for the collection that AI-Q is configured to query.
 
 Check AI-Q backend logs:
 

@@ -10,7 +10,7 @@ This repository includes a local custom config:
 cat manifests/configs/config_lab_custom.yml
 ```
 
-The file follows the same top-level structure as the AI-Q configuration reference:
+The file follows the same top-level structure as the AI-Q configuration reference and builds on the FRAG configuration used in the previous section:
 
 - `general`: logging, telemetry, API frontend, CORS, and runtime settings.
 - `llms`: model definitions, model names, hosted endpoint URLs, retry limits, and sampling settings.
@@ -20,9 +20,14 @@ The file follows the same top-level structure as the AI-Q configuration referenc
 This lab config changes a few values that are easy to verify:
 
 - `general.telemetry.logging.console.level` is set to `DEBUG`.
-- `workflow.description` contains a custom lab description.
+- `functions.data_sources.sources.web_search.default_enabled` is set to `false`.
+- `functions.data_sources.sources.knowledge_layer.default_enabled` is set to `true`.
 - `shallow_research_agent.max_tool_iterations` is reduced to `4`.
+- `shallow_research_agent.max_llm_turns` is reduced to `6`.
 - `knowledge_search.top_k` is reduced to `3`.
+- `knowledge_search.backend` remains `foundational_rag`, so this custom config still uses the RAG Blueprint instead of switching back to local LlamaIndex storage.
+
+The practical impact is that AI-Q starts in a more document-focused posture: the Knowledge Base is enabled by default, Web Search is not selected by default, RAG retrieval returns fewer chunks, and shallow research has a smaller iteration budget.
 
 ## 2. Inspect the mount values file
 
@@ -38,7 +43,7 @@ The important value is:
 CONFIG_FILE: /app/custom-config/config_lab_custom.yml
 ```
 
-That path must exist inside the backend container after the ConfigMap is mounted.
+That path must exist inside the backend container after the ConfigMap is mounted. This values file only changes where `CONFIG_FILE` points and how the file is mounted; it does not define `RAG_SERVER_URL`, `RAG_INGEST_URL`, or `COLLECTION_NAME`. Those still come from `manifests/aiq-frag-values.yaml`, so the Helm upgrade below must include both files.
 
 ## 3. Create the ConfigMap
 
@@ -60,15 +65,18 @@ kubectl get configmap aiq-custom-config -n ns-aiq
 
 ## 4. Upgrade AI-Q with the custom config
 
-Apply the base AI-Q values plus the custom config mount values:
+Apply the base AI-Q values, the FRAG environment values, and the custom config mount values:
 
 ```bash
 helm upgrade --install aiq ./aiq2-web-2.0.0.tgz \
   -n ns-aiq \
   --wait --timeout 10m \
   -f manifests/aiq-values.yaml \
+  -f manifests/aiq-frag-values.yaml \
   -f manifests/aiq-custom-config-values.yaml
 ```
+
+The order matters. `manifests/aiq-frag-values.yaml` keeps the RAG URLs and collection name, while `manifests/aiq-custom-config-values.yaml` overrides only `CONFIG_FILE` and mounts the local config file.
 
 Wait for the backend rollout:
 
@@ -95,7 +103,7 @@ Verify the ConfigMap content that Kubernetes mounted into the pod:
 
 ```bash
 kubectl get configmap aiq-custom-config -n ns-aiq \
-  -o jsonpath='{.data.config_lab_custom\.yml}' | grep -nE "level: DEBUG|description:|max_tool_iterations: 4|top_k: 3"
+  -o jsonpath='{.data.config_lab_custom\.yml}' | grep -nE "level: DEBUG|default_enabled: false|default_enabled: true|backend: foundational_rag|max_tool_iterations: 4|top_k: 3"
 ```
 
 You should see the custom values from `manifests/configs/config_lab_custom.yml`.
@@ -110,18 +118,20 @@ kubectl get deploy aiq-backend -n ns-aiq -o yaml | grep -nE "CONFIG_FILE|aiq-cus
 
 Open the AI-Q UI from the Brev endpoint for port `3001` with the `/aiq` path.
 
-Send a shallow research prompt:
+Open **Data Sources** and notice the changed defaults: Web Search should not be enabled by default, while file-backed Knowledge Base behavior is configured through the FRAG collection.
+
+Send a document-grounded prompt after uploading a file through the **Files** tab:
 
 ```text
-Find two recent NVIDIA AI Enterprise release highlights and summarize why they matter.
+Using the uploaded document, summarize the key claims and list any implementation constraints.
 ```
 
-This is a good test because it should use the `intent_classifier`, then the tuned `shallow_research_agent`, and it can exercise the web search tool.
+This is a good test because it exercises the same FRAG path from the previous section while using the locally mounted config. The smaller `knowledge_search.top_k` should keep retrieval focused, and the reduced shallow research limits make the workflow easier to observe in the lab.
 
 Check the backend logs:
 
 ```bash
-kubectl logs -n ns-aiq deploy/aiq-backend --since=10m | grep -Ei "DEBUG|config_lab_custom|shallow_research_agent|intent_classifier|web_search|tool"
+kubectl logs -n ns-aiq deploy/aiq-backend --since=10m | grep -Ei "DEBUG|config_lab_custom|shallow_research_agent|intent_classifier|knowledge|rag|retriev|collection"
 ```
 
 Useful keywords to look for:
@@ -130,7 +140,7 @@ Useful keywords to look for:
 - `config_lab_custom`, confirming the mounted config path appears in startup or error logs.
 - `intent_classifier`, showing the request passed through classification.
 - `shallow_research_agent`, showing the shallow route was selected.
-- `web_search`, `tavily`, or `tool`, showing tool-assisted research was used.
+- `knowledge`, `rag`, `retriev`, or `collection`, showing the Knowledge Base path was used.
 
 If the pod does not start, inspect the backend logs without filtering:
 
