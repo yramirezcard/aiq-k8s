@@ -2,6 +2,8 @@ import aiqArchitecture from "../images/aiq-architecture.png";
 
 The NVIDIA AI-Q Blueprint is an enterprise research-agent reference implementation. It is built on NVIDIA NeMo Agent Toolkit and uses LangChain Deep Agents to support both quick cited answers and longer, report-style research workflows.
 
+At a high level, AI-Q uses a two-tier research architecture. Simple requests can stay on a fast path, while complex or ambiguous research tasks can move into a deeper planning and investigation workflow. Every user request first passes through an intent-classification step that decides whether AI-Q should answer directly, perform shallow tool-assisted research, or prepare a deeper research plan.
+
 <img
   src={aiqArchitecture.src}
   alt="AI-Q architecture diagram showing orchestration, shallow research, deep research, tools, and response paths"
@@ -15,9 +17,18 @@ AI-Q is more than one chat endpoint. The blueprint combines:
 - An orchestration node that classifies user intent and decides whether the request is a meta response, shallow research, or deeper research.
 - A shallow researcher for faster bounded answers with source citation.
 - A deep research workflow for multi-step planning, source gathering, synthesis, and citation-backed report generation.
+- A human-in-the-loop clarification step for complex research requests that benefit from an approved plan before execution.
 - YAML workflow configuration so models, tools, agents, and routing can be changed without rewriting the app.
 - Frontend options including CLI, API, web UI, async jobs, and notebooks.
 - Deployment assets for Docker Compose and Helm.
+
+## Research paths
+
+AI-Q routes work into three broad paths:
+
+- Meta responses for questions about the system itself or requests that do not require external research.
+- Shallow research for direct factual questions, quick lookups, and straightforward comparisons.
+- Deep research for comprehensive investigations, multi-step analysis, and report-style answers with stronger planning and synthesis.
 
 ## What you'll learn
 

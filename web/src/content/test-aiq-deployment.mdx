@@ -1,4 +1,4 @@
-Use this section to verify that the AI-Q Helm release is running and reachable.
+At this point the cluster has the AI-Q release installed. This section helps you build confidence that each service is healthy, that the UI is reachable through the launchable endpoint, and that AI-Q can route different types of requests through different agent paths.
 
 ## 1. Verify the installation
 
@@ -13,6 +13,12 @@ aiq-backend-...    1/1 Running
 aiq-frontend-...   1/1 Running
 aiq-postgres-...   1/1 Running
 ```
+
+The default deployment includes these main pods:
+
+- `aiq-backend`: runs the AI-Q API and agent workflow. This is where request routing, model calls, tool execution, and research orchestration happen.
+- `aiq-frontend`: serves the web UI that you use to submit prompts and inspect responses.
+- `aiq-postgres`: stores backend state used by the AI-Q services, including job and checkpoint data configured by the deployment.
 
 Check services:
 
@@ -42,26 +48,63 @@ http://localhost:8000/docs
 
 ## 3. Access the AI-Q web UI
 
-Forward the frontend service:
+The tutorial UI itself runs on port `3000`, so AI-Q needs a different external entry point. This launchable exposes AI-Q through Envoy Gateway on host port `3001` at the `/aiq` path.
+
+That design keeps the tutorial UI and the AI-Q UI separate while still making both reachable through Brev endpoints. Inside Kubernetes, the frontend remains a normal service. Envoy owns the external HTTP route and forwards requests matching `/aiq` to the `aiq-frontend` service. The setup script binds Envoy to a real host port so the Brev endpoint can reach it reliably.
+
+Verify the service and route:
 
 ```bash
-kubectl port-forward -n ns-aiq svc/aiq-frontend 3001:3000 --address 0.0.0.0
+kubectl get svc -n ns-aiq aiq-frontend
 ```
 
-Open the Brev launchable endpoint for port `3001`. If you are testing locally, use:
-
-```text
-http://localhost:3001
+```bash
+kubectl get gateway -n aiq-gateway
+```
+```bash
+kubectl get httproute -n ns-aiq aiq-frontend
 ```
 
-## 4. Run a meta-response test
+Open the Brev launchable endpoint for port `3001`, then add `/aiq` to the URL path. 
 
-From the AI-Q UI, send a simple meta prompt first. The Getting Started notebook demonstrates this kind of first interaction before moving into deeper research.
+## 4. Test a meta-response route
 
-Try:
+Start with a prompt that asks about AI-Q itself. This is a good first test because it should stay on the meta-response path: the system can answer from its own capabilities without using web search or deeper research planning.
+
+In the AI-Q UI, open a new chat and send:
 
 ```text
 What can you help me with?
 ```
 
-You should receive a capabilities-style response rather than a long research report. After that works, try a shallow research question with web search enabled.
+You should receive a capabilities-style response rather than a long research report.
+
+Check the backend logs after sending the prompt:
+
+```bash
+kubectl logs -n ns-aiq deploy/aiq-backend --since=5m | grep -Ei "intent|meta|classifier|workflow|agent"
+```
+
+Look for keywords such as `intent_classifier`, `meta`, `user_intent`, or `workflow`. The exact log wording can vary by image version and log level, but this request should not look like a web-search-heavy or deep-research run.
+
+## 5. Test a shallow research route
+
+Next, test a prompt that needs current outside information but does not require a long research plan. A good shallow research candidate is specific, factual, and answerable with a small number of web search calls.
+
+In the AI-Q UI, send:
+
+```text
+What are the latest NVIDIA AI Enterprise release highlights?
+```
+
+This should route differently from the meta-response prompt. AI-Q should classify the request as research, use the shallow researcher, call web search tools, and return a concise answer with sources instead of a multi-section report.
+
+Check the backend logs again:
+
+```bash
+kubectl logs -n ns-aiq deploy/aiq-backend --since=5m | grep -Ei "shallow|research|web_search|tavily|tool|citation|intent"
+```
+
+Look for keywords such as `shallow_research_agent`, `web_search_tool`, `tavily`, `tool`, `citation`, or `research`. Compared with the meta-response test, this log output should show tool or search activity and shallow research routing.
+
+If the response looks like a deep report or asks for clarification, try a narrower factual query. If the response has no sources, confirm `TAVILY_API_KEY` was set before the Helm install and that the `aiq-credentials` secret exists in `ns-aiq`.

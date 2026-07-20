@@ -25,6 +25,7 @@ chmod +x scripts/setup.sh 2>/dev/null || true
 echo "[brev-setup] writing .env from Launchable env-config..."
 : > .env
 for v in K3S_CHANNEL K3S_VERSION INSTALL_K3S INSTALL_HELM \
+         ENVOY_GATEWAY_ENABLED ENVOY_HOST_PORT ENVOY_WEB_NODEPORT AIQ_ROUTE_PATH RAG_ROUTE_PATH \
          ENABLE_WORKSHOP WORKSHOP_PORT ANSIBLE_TAGS; do
   if [ -n "${!v:-}" ]; then
     printf '%s=%q\n' "$v" "${!v}" >> .env

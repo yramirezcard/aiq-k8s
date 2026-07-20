@@ -1,0 +1,24 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: aiq-frontend
+  namespace: {{ aiq_namespace }}
+spec:
+  parentRefs:
+    - name: aiq-gw
+      namespace: {{ envoy_gateway_ns }}
+      sectionName: web
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "{{ aiq_route_path }}"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: {{ aiq_frontend_service }}
+          port: {{ aiq_frontend_service_port }}

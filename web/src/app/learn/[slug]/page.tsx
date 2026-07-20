@@ -14,7 +14,7 @@ export const dynamicParams = false;
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const lesson = ALL_LESSONS.find((l) => l.slug === slug);
-  return { title: lesson ? `${lesson.title} - AIQ on Kubernetes` : "AIQ on Kubernetes" };
+  return { title: lesson ? `${lesson.title} - AI-Q on Kubernetes` : "AI-Q on Kubernetes" };
 }
 
 export default async function LessonPage({ params }: { params: Promise<{ slug: string }> }) {

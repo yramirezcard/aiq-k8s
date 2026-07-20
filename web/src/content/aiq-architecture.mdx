@@ -1,0 +1,104 @@
+import { ArchitectureFlow } from "../components/ArchitectureFlow";
+
+AI-Q is organized around an orchestration graph that decides how much research a request needs before spending time and model calls. The architecture is intentionally split into a fast path for simple work and a deeper path for more complex research.
+
+## Core components
+
+| Component | Role in the architecture |
+| --- | --- |
+| Intent Classifier | Classifies the request, generates direct meta responses when appropriate, and chooses shallow or deep research for research requests. |
+| Clarifier Agent | Adds a human-in-the-loop checkpoint before deep research by asking focused questions and producing a structured research plan for approval. |
+| Shallow Researcher | Performs fast, bounded research with tools, citations, and a final synthesis for simpler questions. |
+| Deep Researcher | Coordinates a multi-phase research workflow for comprehensive answers, including planning, source gathering, drafting, and citation validation. |
+| Chat Researcher Orchestrator | Maintains the LangGraph state machine that connects routing, research, clarification, and final response generation. |
+
+## Agent roles
+
+### Intent Classifier
+
+The Intent Classifier is the entry point for every query. It combines three decisions in one model call: whether the request is meta or research-oriented, whether a direct answer is enough, and whether a research request should use the shallow or deep path.
+
+<div className="not-prose my-4 grid gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3 text-sm md:grid-cols-[1fr_auto_1.2fr_auto_1.4fr] md:items-center">
+  <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] p-3 text-center font-semibold text-[var(--color-fg)]">User query</div>
+  <div className="hidden text-center text-[var(--color-nv-bright)] md:block">-&gt;</div>
+  <div className="rounded-md border border-[var(--color-nv)] bg-[rgba(118,185,0,0.1)] p-3 text-center font-semibold text-[var(--color-fg)]">Intent Classifier</div>
+  <div className="hidden text-center text-[var(--color-nv-bright)] md:block">-&gt;</div>
+  <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] p-3 text-center text-[var(--color-fg-dim)]">Meta response, shallow research, or deep research</div>
+</div>
+
+The classifier keeps the system efficient. A simple system question does not need a research workflow, while a broad investigation should not be forced through a quick lookup path.
+
+### Clarifier Agent
+
+The Clarifier Agent runs before deep research when human review is enabled. It can ask clarification questions, create a structured plan with sections and research goals, and wait for user approval before the deeper workflow starts.
+
+<div className="not-prose my-4 grid gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3 text-sm md:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] md:items-center">
+  <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] p-3 text-center text-[var(--color-fg-dim)]">Deep research request</div>
+  <div className="hidden text-center text-[var(--color-nv-bright)] md:block">-&gt;</div>
+  <div className="rounded-md border border-[var(--color-nv)] bg-[rgba(118,185,0,0.1)] p-3 text-center font-semibold text-[var(--color-fg)]">Clarifying questions</div>
+  <div className="hidden text-center text-[var(--color-nv-bright)] md:block">-&gt;</div>
+  <div className="rounded-md border border-[var(--color-nv)] bg-[rgba(118,185,0,0.1)] p-3 text-center font-semibold text-[var(--color-fg)]">Approved plan</div>
+  <div className="hidden text-center text-[var(--color-nv-bright)] md:block">-&gt;</div>
+  <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] p-3 text-center text-[var(--color-fg-dim)]">Deep Researcher</div>
+</div>
+
+This step is useful when the request is open-ended, risky to interpret too narrowly, or likely to benefit from explicit scope before the agents spend time gathering sources.
+
+### Shallow Researcher
+
+The Shallow Researcher is optimized for speed. It uses tool calls within a configured budget, rewrites queries when useful, compacts context, verifies citations, and produces a concise answer when the budget is reached.
+
+<div className="not-prose my-4 grid gap-3 rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3 text-sm md:grid-cols-2">
+  <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] p-3">
+    <div className="text-xs font-semibold uppercase text-[var(--color-nv-bright)]">Fast path</div>
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-[var(--color-fg-dim)]">
+      <span className="rounded border border-[var(--color-line)] px-2 py-1">Shallow intent</span>
+      <span className="text-[var(--color-nv-bright)]">-&gt;</span>
+      <span className="rounded border border-[var(--color-nv)] bg-[rgba(118,185,0,0.1)] px-2 py-1">Tool calls</span>
+      <span className="text-[var(--color-nv-bright)]">-&gt;</span>
+      <span className="rounded border border-[var(--color-line)] px-2 py-1">Cited answer</span>
+    </div>
+  </div>
+  <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] p-3">
+    <div className="text-xs font-semibold uppercase text-[var(--color-nv-bright)]">Escalation path</div>
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-[var(--color-fg-dim)]">
+      <span className="rounded border border-[var(--color-line)] px-2 py-1">Insufficient scope</span>
+      <span className="text-[var(--color-nv-bright)]">-&gt;</span>
+      <span className="rounded border border-[var(--color-nv)] bg-[rgba(118,185,0,0.1)] px-2 py-1">Clarifier</span>
+      <span className="text-[var(--color-nv-bright)]">-&gt;</span>
+      <span className="rounded border border-[var(--color-line)] px-2 py-1">Deep research</span>
+    </div>
+  </div>
+</div>
+
+The important idea is that shallow research is bounded. It is designed to answer quickly, but it can hand work to the deeper path when the question demands more context.
+
+### Deep Researcher
+
+The Deep Researcher is optimized for thoroughness. It uses an orchestrator with specialized planning and research subagents to build evidence-grounded outlines, execute searches, synthesize findings, and produce a more complete report.
+
+<div className="not-prose my-4 grid gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3 text-sm md:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] md:items-center">
+  <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] p-3 text-center text-[var(--color-fg-dim)]">Approved research plan</div>
+  <div className="hidden text-center text-[var(--color-nv-bright)] md:block">-&gt;</div>
+  <div className="rounded-md border border-[var(--color-nv)] bg-[rgba(118,185,0,0.1)] p-3 text-center font-semibold text-[var(--color-fg)]">Planner agent</div>
+  <div className="hidden text-center text-[var(--color-nv-bright)] md:block">-&gt;</div>
+  <div className="rounded-md border border-[var(--color-nv)] bg-[rgba(118,185,0,0.1)] p-3 text-center font-semibold text-[var(--color-fg)]">Researcher agent</div>
+  <div className="hidden text-center text-[var(--color-nv-bright)] md:block">-&gt;</div>
+  <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] p-3 text-center text-[var(--color-fg-dim)]">Report synthesis</div>
+</div>
+
+This path is where AI-Q spends more effort on planning, iterative evidence gathering, citation checks, and final synthesis.
+
+## Request flow
+
+Every request starts at the Intent Classifier. From there, AI-Q can answer directly, run shallow research, or move into a deeper workflow with clarification and planning. Use the examples below to see how different requests move through the system.
+
+<ArchitectureFlow />
+
+The shallow path can also escalate to deeper research when the initial result suggests that the query needs more planning, broader analysis, or user-approved scope.
+
+## State and control
+
+The orchestrator carries shared state through the graph: the message history, user information, selected data sources, the intent decision, the depth decision, shallow research output, clarifier output, and final report. This gives AI-Q a consistent way to route requests while still allowing individual agents to specialize.
+
+Source references: [architecture overview](https://docs.nvidia.com/aiq-blueprint/2.0.0/architecture/overview.html), [agents overview](https://docs.nvidia.com/aiq-blueprint/2.0.0/architecture/agents/index.html), [intent classifier](https://docs.nvidia.com/aiq-blueprint/2.0.0/architecture/agents/intent-classifier.html), [clarifier](https://docs.nvidia.com/aiq-blueprint/2.0.0/architecture/agents/clarifier.html), [shallow researcher](https://docs.nvidia.com/aiq-blueprint/2.0.0/architecture/agents/shallow-researcher.html), and [deep researcher](https://docs.nvidia.com/aiq-blueprint/2.0.0/architecture/agents/deep-researcher.html).

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { SiteHeader } from "@/components/SiteHeader";
 
 export const metadata: Metadata = {
-  title: "AIQ on Kubernetes",
+  title: "AI-Q on Kubernetes",
   description: "A hands-on tutorial for deploying the NVIDIA AI-Q Blueprint on Kubernetes.",
 };
 

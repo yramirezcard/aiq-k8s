@@ -1,17 +1,46 @@
-The NVIDIA RAG Blueprint is a reference solution for retrieval-augmented generation pipelines.
+The NVIDIA RAG Blueprint is a reference solution for building retrieval-augmented generation pipelines with NVIDIA NIM microservices. It combines large language model reasoning with real-time retrieval from trusted enterprise data, so answers can be grounded in documents instead of relying only on model memory.
 
-RAG combines LLM reasoning with retrieval from trusted data sources so generated answers can be grounded in enterprise knowledge. The blueprint includes ingestion, retrieval, reranking, generation, and a reference UI.
+In this lab, RAG becomes the knowledge layer that AI-Q can call when a research workflow needs information from uploaded documents.
 
-## Core ideas
+## What the RAG Blueprint provides
 
-- Ingestion extracts content from documents and stores it in a searchable backend.
-- Retrieval finds relevant chunks from the user's corpus.
-- Reranking can improve result precision before generation.
-- Generation uses the retrieved context to produce grounded answers.
-- The RAG server and ingestor expose APIs that other applications, including AI-Q, can call.
+The blueprint is designed as a configurable starting point for enterprise RAG systems. It includes:
+
+- A reference web UI for uploading documents, managing sessions, and asking grounded questions.
+- RAG server APIs for question answering, retrieval, and generation.
+- An ingestor service for document processing, chunking, metadata extraction, and vector database writes.
+- Support for NVIDIA hosted endpoints or self-hosted NIM services for generation, embeddings, reranking, and extraction.
+- Vector database integration for storing and retrieving document chunks.
+- Optional reranking, citations, guardrails, observability, multimodal extraction, and multi-turn conversation support.
+- Deployment options for Docker, Helm, Kubernetes, and library-mode experimentation.
+
+## Why RAG matters
+
+RAG helps solve a common enterprise problem: valuable knowledge lives in documents, not only in model weights. By retrieving relevant passages at request time, the system can produce answers that are fresher, more auditable, and more connected to the organization’s actual corpus.
+
+The key benefits are:
+
+- Grounding: responses can cite retrieved document chunks.
+- Freshness: users can upload or update documents without retraining a model.
+- Governance: retrieval can be scoped to approved data sources and collections.
+- Decomposition: ingestion, retrieval, reranking, and generation can be tuned independently.
+- Production fit: APIs, services, and deployment assets are separated so the stack can be operated like normal Kubernetes software.
 
 ## Why connect RAG to AI-Q
 
-AI-Q can use Foundational RAG as an external knowledge layer. In that mode, AI-Q keeps the agentic research workflow while delegating document-grounded retrieval and ingestion to the RAG Blueprint.
+AI-Q provides the agentic research workflow: intent classification, shallow research, deep research, clarification, and synthesis. RAG provides a trusted knowledge substrate that AI-Q can use when the answer should come from user-provided or enterprise-specific documents.
 
-This lab keeps the same principle as the AI-Q deployment: use hosted NVIDIA endpoints where possible so the launchable does not need local GPUs.
+Connecting the two gives the lab a more realistic enterprise pattern:
+
+- AI-Q decides whether a question needs research and which tools or data sources to use.
+- RAG owns ingestion and retrieval from uploaded files.
+- The AI-Q UI becomes the research interface, while RAG acts as a specialized knowledge service behind the scenes.
+- Later prompts can combine general web research with document-grounded evidence from FRAG.
+
+## Lab approach
+
+The upstream RAG Blueprint supports self-hosted model services, which can require GPU resources and large model caches. This launchable keeps the lab lightweight by using NVIDIA hosted endpoints for model inference and a CPU vector database configuration for retrieval storage.
+
+That means the Kubernetes cluster runs the RAG application services, ingestor, frontend, storage, and vector database, while generation, embeddings, reranking, and related model calls go to NVIDIA hosted endpoints.
+
+Source reference: [NVIDIA RAG Blueprint repository](https://github.com/NVIDIA-AI-Blueprints/rag/tree/develop).

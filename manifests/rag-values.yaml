@@ -1,0 +1,100 @@
+# Custom values for the AI-Q on Kubernetes lab.
+# These overrides keep model inference on NVIDIA hosted endpoints and avoid GPU
+# requirements for the vector database path.
+
+imagePullSecret:
+  name: ngc-secret
+  registry: nvcr.io
+  username: "$oauthtoken"
+  create: true
+
+ngcApiSecret:
+  name: ngc-api
+  create: true
+
+apiKeysSecret:
+  create: true
+  name: rag-api-keys
+
+envVars:
+  # Empty server URLs instruct the RAG server to use NVIDIA hosted endpoints.
+  APP_LLM_SERVERURL: ""
+  APP_QUERYREWRITER_SERVERURL: ""
+  APP_FILTEREXPRESSIONGENERATOR_SERVERURL: ""
+  APP_EMBEDDINGS_SERVERURL: ""
+  APP_RANKING_SERVERURL: ""
+  REFLECTION_LLM_SERVERURL: ""
+  APP_VLM_SERVERURL: ""
+
+  # CPU vector search for the lab environment.
+  APP_VECTORSTORE_NAME: "milvus"
+  APP_VECTORSTORE_URL: "http://milvus:19530"
+  APP_VECTORSTORE_INDEXTYPE: "HNSW"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+
+ingestor-server:
+  envVars:
+    # Empty endpoint URLs instruct the ingestor to use NVIDIA hosted endpoints.
+    APP_EMBEDDINGS_SERVERURL: ""
+    SUMMARY_LLM_SERVERURL: ""
+    APP_NVINGEST_CAPTIONENDPOINTURL: ""
+
+    # CPU vector indexing and search for the lab environment.
+    APP_VECTORSTORE_NAME: "milvus"
+    APP_VECTORSTORE_URL: "http://milvus:19530"
+    APP_VECTORSTORE_ENABLEGPUINDEX: "False"
+    APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+
+    # Keep ingestion text-focused for a CPU launchable.
+    APP_NVINGEST_EXTRACTTEXT: "True"
+    APP_NVINGEST_EXTRACTTABLES: "False"
+    APP_NVINGEST_EXTRACTCHARTS: "False"
+    APP_NVINGEST_EXTRACTIMAGES: "False"
+    APP_NVINGEST_EXTRACTINFOGRAPHICS: "False"
+
+frontend:
+  service:
+    type: ClusterIP
+
+nimOperator:
+  nim-llm:
+    enabled: false
+  nim-vlm:
+    enabled: false
+  nim-vlm-captioning:
+    enabled: false
+  nvidia-nim-llama-32-nv-embedqa-1b-v2:
+    enabled: false
+  nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+    enabled: false
+  nvidia-nim-llama-nemotron-embed-vl-1b-v2:
+    enabled: false
+  nvidia-nim-llama-nemotron-embed-1b-v2:
+    enabled: false
+  nvidia-nim-llama-nemotron-rerank-1b-v2:
+    enabled: false
+
+nv-ingest:
+  milvusDeployed: true
+  milvus:
+    image:
+      all:
+        repository: docker.io/milvusdb/milvus
+        tag: v2.6.5
+    standalone:
+      resources:
+        limits:
+          nvidia.com/gpu: 0
+  nimOperator:
+    page_elements:
+      enabled: false
+    graphic_elements:
+      enabled: false
+    table_structure:
+      enabled: false
+    ocr:
+      enabled: false
+  envVars:
+    EMBEDDING_NIM_ENDPOINT: ""
+    VLM_CAPTION_ENDPOINT: ""
+    COMPONENTS_TO_READY_CHECK: ""

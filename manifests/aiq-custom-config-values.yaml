@@ -1,0 +1,21 @@
+# Mount a local AI-Q config file into the backend pod and make CONFIG_FILE
+# point to the mounted path.
+#
+# The ConfigMap itself is created from manifests/configs/config_lab_custom.yml
+# in the tutorial commands. This values file only wires that ConfigMap into
+# the AI-Q backend deployment.
+
+aiq:
+  apps:
+    backend:
+      env:
+        CONFIG_FILE: /app/custom-config/config_lab_custom.yml
+      volumeMounts:
+        - name: aiq-custom-config
+          mountPath: /app/custom-config/config_lab_custom.yml
+          subPath: config_lab_custom.yml
+          readOnly: true
+      volumes:
+        - name: aiq-custom-config
+          configMap:
+            name: aiq-custom-config

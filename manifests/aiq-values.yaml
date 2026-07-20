@@ -1,0 +1,14 @@
+aiq:
+  apps:
+    backend:
+      imagePullSecrets:
+        - name: ngc-secret
+    frontend:
+      imagePullSecrets:
+        - name: ngc-secret
+      service:
+        port: 3001
+        targetPort: 3000
+    postgres:
+      imagePullSecrets: 
+        - name: ngc-secret

@@ -1,0 +1,141 @@
+AI-Q is configured through a YAML file that defines runtime settings, model endpoints, tools, agents, and the top-level workflow. In the earlier deployment sections, `CONFIG_FILE` pointed to config files already packaged inside the backend image. In this section, you will mount a local config file into the backend pod and make AI-Q use it.
+
+Source reference: [AI-Q Configuration Reference](https://docs.nvidia.com/aiq-blueprint/2.0.0/customization/configuration-reference.html).
+
+## 1. Inspect the custom config file
+
+This repository includes a local custom config:
+
+```bash
+cat manifests/configs/config_lab_custom.yml
+```
+
+The file follows the same top-level structure as the AI-Q configuration reference:
+
+- `general`: logging, telemetry, API frontend, CORS, and runtime settings.
+- `llms`: model definitions, model names, hosted endpoint URLs, retry limits, and sampling settings.
+- `functions`: tools and agents, including web search, knowledge retrieval, intent classification, shallow research, clarification, and deep research.
+- `workflow`: the top-level AI-Q orchestrator and the agents it wires together.
+
+This lab config changes a few values that are easy to verify:
+
+- `general.telemetry.logging.console.level` is set to `DEBUG`.
+- `workflow.description` contains a custom lab description.
+- `shallow_research_agent.max_tool_iterations` is reduced to `4`.
+- `knowledge_search.top_k` is reduced to `3`.
+
+## 2. Inspect the mount values file
+
+The Helm override file does not contain the whole config. It only tells the backend pod where to mount the ConfigMap and what `CONFIG_FILE` path to use:
+
+```bash
+cat manifests/aiq-custom-config-values.yaml
+```
+
+The important value is:
+
+```yaml
+CONFIG_FILE: /app/custom-config/config_lab_custom.yml
+```
+
+That path must exist inside the backend container after the ConfigMap is mounted.
+
+## 3. Create the ConfigMap
+
+Create or update a ConfigMap from the local config file:
+
+```bash
+kubectl create configmap aiq-custom-config -n ns-aiq \
+  --from-file=config_lab_custom.yml=manifests/configs/config_lab_custom.yml \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+ConfigMap updates do not automatically restart an already-running pod. After changing the file, rerun the Helm upgrade in the next step or restart the backend deployment so the pod reads the latest mounted content.
+
+Confirm it exists:
+
+```bash
+kubectl get configmap aiq-custom-config -n ns-aiq
+```
+
+## 4. Upgrade AI-Q with the custom config
+
+Apply the base AI-Q values plus the custom config mount values:
+
+```bash
+helm upgrade --install aiq ./aiq2-web-2.0.0.tgz \
+  -n ns-aiq \
+  --wait --timeout 10m \
+  -f manifests/aiq-values.yaml \
+  -f manifests/aiq-custom-config-values.yaml
+```
+
+Wait for the backend rollout:
+
+```bash
+kubectl rollout status deployment/aiq-backend -n ns-aiq --timeout=5m
+```
+
+## 5. Verify the mounted config
+
+Check that the backend sees the custom `CONFIG_FILE` path:
+
+```bash
+kubectl exec -n ns-aiq deploy/aiq-backend -- \
+  sh -lc 'echo "CONFIG_FILE=$CONFIG_FILE"'
+```
+
+Expected output:
+
+```text
+CONFIG_FILE=/app/custom-config/config_lab_custom.yml
+```
+
+Verify the mounted file content from inside the pod:
+
+```bash
+kubectl exec -n ns-aiq deploy/aiq-backend -- \
+  sh -lc 'grep -nE "level: DEBUG|description:|max_tool_iterations: 4|top_k: 3" "$CONFIG_FILE"'
+```
+
+You should see the custom values from `manifests/configs/config_lab_custom.yml`.
+
+You can also inspect the rendered deployment:
+
+```bash
+kubectl get deploy aiq-backend -n ns-aiq -o yaml | grep -nE "CONFIG_FILE|aiq-custom-config|custom-config" -A4 -B4
+```
+
+## 6. Test the change from the AI-Q UI
+
+Open the AI-Q UI from the Brev endpoint for port `3001` with the `/aiq` path.
+
+Send a shallow research prompt:
+
+```text
+Find two recent NVIDIA AI Enterprise release highlights and summarize why they matter.
+```
+
+This is a good test because it should use the `intent_classifier`, then the tuned `shallow_research_agent`, and it can exercise the web search tool.
+
+Check the backend logs:
+
+```bash
+kubectl logs -n ns-aiq deploy/aiq-backend --since=10m | grep -Ei "DEBUG|config_lab_custom|shallow_research_agent|intent_classifier|web_search|tool"
+```
+
+Useful keywords to look for:
+
+- `DEBUG`, confirming the custom logging level is active.
+- `config_lab_custom`, confirming the mounted config path appears in startup or error logs.
+- `intent_classifier`, showing the request passed through classification.
+- `shallow_research_agent`, showing the shallow route was selected.
+- `web_search`, `tavily`, or `tool`, showing tool-assisted research was used.
+
+If the pod does not start, inspect the backend logs without filtering:
+
+```bash
+kubectl logs -n ns-aiq deploy/aiq-backend --since=10m
+```
+
+Most startup failures in this section are caused by YAML indentation, a missing ConfigMap, or a `CONFIG_FILE` path that does not match the mounted file path.

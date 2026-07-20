@@ -5,6 +5,7 @@
 #   hostprep  Install base host packages
 #   k3s       Install k3s and wait for the API
 #   helm      Install Helm and kubectl convenience links
+#   envoy     Install Envoy Gateway and the /aiq and /rag routes
 
 - name: Host preparation
   hosts: k3s_cluster
@@ -29,3 +30,9 @@
   become: true
   roles:
     - { role: "02-k8s-tools", tags: [helm, tools] }
+
+- name: Envoy Gateway exposure
+  hosts: server
+  become: true
+  roles:
+    - { role: "03-envoy-gateway", when: envoy_gateway_enabled | bool, tags: [envoy, gateway] }

@@ -1,0 +1,42 @@
+import ragArchitecture from "../images/rag-architecture.png";
+import { RagWorkflow } from "../components/RagWorkflow";
+
+The RAG Blueprint is split into services that handle ingestion, retrieval, generation, storage, and user interaction. That separation matters because each part of the pipeline can be scaled, tuned, or replaced independently.
+
+## Architecture diagram
+
+<img
+  src={ragArchitecture.src}
+  alt="NVIDIA RAG Blueprint architecture diagram showing ingestion, vector database, retrieval, reranking, generation, and UI/API paths"
+  className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3"
+/>
+
+## Core components
+
+| Component | Function |
+| --- | --- |
+| RAG frontend | Web UI for uploads, chat, document interaction, and endpoint configuration. |
+| RAG server | Main query API. It receives questions, retrieves context, optionally reranks results, and calls the generation model. |
+| Ingestor server | Document ingestion API. It coordinates extraction, chunking, metadata, embeddings, and writes to the vector database. |
+| NV-Ingest pipeline | Processes files into structured content, including text and optional multimodal extraction paths. |
+| Vector database | Stores document embeddings and metadata for similarity search. This lab configures the vector database for CPU mode. |
+| Object storage | Stores document artifacts and extracted content used by the ingestion and retrieval services. |
+| Redis | Tracks ingestion and summary status for asynchronous operations. |
+| Hosted NVIDIA endpoints | Provide model inference for generation, embeddings, reranking, and optional extraction instead of running local NIM pods. |
+
+## Query and ingestion workflow
+
+<RagWorkflow />
+
+## How AI-Q uses this architecture
+
+For FRAG integration, AI-Q does not need to know the internal details of document extraction or vector indexing. It only needs reachable RAG API endpoints:
+
+- `RAG_SERVER_URL` for retrieval and grounded generation.
+- `RAG_INGEST_URL` for document ingestion and corpus management.
+
+That boundary is useful in production. The RAG team can tune ingestion, vector database settings, reranking, and document processing while AI-Q continues to use a stable service interface.
+
+## Hosted endpoint strategy
+
+The upstream RAG Blueprint can run with self-hosted NIM services on GPU-backed clusters. In this lab, model-serving URLs are set so the RAG services use NVIDIA hosted endpoints instead. The cluster still runs the application services and vector database, but it does not need GPUs for the model inference layer.

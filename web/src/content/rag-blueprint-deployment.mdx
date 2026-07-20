@@ -1,55 +1,64 @@
-This hands-on section deploys the NVIDIA RAG Blueprint Helm chart.
+This hands-on section deploys the NVIDIA RAG Blueprint with Helm. The lab values file keeps model inference on NVIDIA hosted endpoints and configures the vector database path for CPU operation.
 
-<Callout type="warn" title="Hosted endpoint customization required">
-The upstream RAG Helm guide includes paths for self-hosted NIM services, GPU Operator, NIM Operator, and large model cache storage. For this launchable, edit `custom-values.yaml` so model, embedding, reranking, extraction, and generation endpoints use NVIDIA hosted endpoints instead of locally running NIM services.
+## Prerequisites
+
+`NGC_API_KEY` is required to pull the RAG Helm chart, access NGC container images, and call NVIDIA hosted endpoints.
+
+If you do not have a key yet, follow NVIDIA's [Generating NGC API Keys](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#generating-ngc-api-keys) documentation. You can manage keys from the [NGC API Keys page](https://org.ngc.nvidia.com/account/api-keys).
+
+```bash-ref
+export NGC_API_KEY="<your-ngc-or-nvidia-api-key>"
+```
+
+<Callout type="warn" title="Keep keys private">
+Do not paste real keys into shared logs or committed files. The commands below pass the key to Helm so Kubernetes secrets can be created by the chart.
 </Callout>
 
 ## 1. Create the namespace
 
+Create the namespace if it does not already exist:
+
 ```bash
-kubectl create namespace rag --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace rag
 ```
 
-## 2. Create a custom values file
+## 2. Inspect the chart defaults
 
-Start by pulling the default values from the chart archive:
+Start by looking at the upstream chart defaults. This helps you see what the lab override file is changing.
 
 ```bash
 helm show values https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
   --username '$oauthtoken' \
-  --password "$NGC_API_KEY" > rag-custom-values.yaml
+  --password "$NGC_API_KEY" | sed -n '1,220p'
 ```
 
-Inspect the file:
+Search the defaults for endpoint, vector database, and GPU-related settings:
 
 ```bash
-sed -n '1,260p' rag-custom-values.yaml
+helm show values https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
+  --username '$oauthtoken' \
+  --password "$NGC_API_KEY" | grep -nEi 'serverurl|vectorstore|gpu|nimOperator|milvus|rerank|embedding|llm'
 ```
 
-## 3. Edit values for hosted endpoints
+## 3. Inspect the lab values file
 
-Update `rag-custom-values.yaml` so this deployment uses NVIDIA hosted endpoints instead of locally running NIM services.
-
-Look for values related to:
-
-- LLM generation endpoint
-- embedding endpoint
-- reranking endpoint
-- extraction/OCR/table/graphics endpoints
-- NIM Operator or NIMService sections
-- image pull and NGC API secret settings
-
-The exact keys can change by chart version, so use the rendered defaults as the source of truth:
+This repository includes the custom values used by the launchable:
 
 ```bash
-grep -nEi 'nim|endpoint|url|embed|rank|rerank|llm|ingest|extract|ocr|hosted' rag-custom-values.yaml
+cat manifests/rag-values.yaml
 ```
 
-Do not hard-code API keys directly in the file unless the chart specifically requires it. Prefer the chart's secret settings and `--set` flags for secret values.
+The important settings are:
 
-## 4. Install the RAG chart
+- Hosted endpoints: model server URL fields such as `APP_LLM_SERVERURL`, `APP_EMBEDDINGS_SERVERURL`, and `APP_RANKING_SERVERURL` are set to empty strings. The RAG services then use NVIDIA hosted endpoints instead of in-cluster NIM services.
+- Local NIM services disabled: the `nimOperator` overrides disable local model-serving pods so the lab does not require GPUs or large model caches.
+- CPU vector database path: `APP_VECTORSTORE_ENABLEGPUSEARCH` and `APP_VECTORSTORE_ENABLEGPUINDEX` are set to `False`, and the Milvus image is set to the CPU image tag.
+- Text-focused ingestion: table, chart, image, and infographic extraction are disabled so the launchable can focus on document text ingestion without requiring extraction NIMs.
+- Secrets are not stored in the file. The API key is passed through Helm flags during installation.
 
-Install the chart with your custom values:
+## 4. Install the RAG Blueprint
+
+Install the chart with the lab values file:
 
 ```bash
 helm upgrade --install rag -n rag \
@@ -58,14 +67,29 @@ helm upgrade --install rag -n rag \
   --password "$NGC_API_KEY" \
   --set imagePullSecret.password="$NGC_API_KEY" \
   --set ngcApiSecret.password="$NGC_API_KEY" \
-  -f rag-custom-values.yaml
+  -f manifests/rag-values.yaml \
+  --wait --timeout 20m
 ```
 
-## 5. Verify RAG
+## 5. Validate the deployment
+
+Check the pods:
 
 ```bash
 kubectl get pods -n rag
 ```
+
+Expected shape:
+
+```text
+rag-server-...        1/1 Running
+ingestor-server-...   1/1 Running
+rag-frontend-...      1/1 Running
+rag-minio-...         1/1 Running
+rag-redis-...         1/1 Running
+```
+
+Check the services:
 
 ```bash
 kubectl get svc -n rag
@@ -75,3 +99,66 @@ The services AI-Q will use later are:
 
 - `rag-server` on port `8081`
 - `ingestor-server` on port `8082`
+- `rag-frontend` on port `3000`, exposed through Envoy at `/rag`
+
+Verify the Envoy route:
+
+```bash
+kubectl get httproute -n rag rag-frontend
+```
+
+Open the same Brev launchable endpoint you use for AI-Q on port `3001`, then add `/rag` to the URL path. The tutorial UI remains on port `3000`; Envoy serves application frontends from port `3001` and path-routes `/aiq` to AI-Q and `/rag` to the RAG frontend.
+
+Check rollout status for the main services:
+
+```bash
+kubectl rollout status deployment/rag-server -n rag --timeout=5m
+kubectl rollout status deployment/ingestor-server -n rag --timeout=5m
+kubectl rollout status deployment/rag-frontend -n rag --timeout=5m
+```
+
+## 6. Troubleshoot
+
+If a pod is not ready, inspect events and logs:
+
+```bash
+kubectl get events -n rag --sort-by='.lastTimestamp'
+```
+
+```bash
+kubectl logs -n rag deploy/rag-server --since=10m
+```
+
+You can also run direct health checks from inside the cluster. 
+
+Start a temporary curl pod to check the RAG server:
+
+```bash
+kubectl run rag-healthcheck -n rag --rm -i --restart=Never \
+  --image=curlimages/curl:8.10.1 -- \
+  curl -sf http://rag-server:8081/health
+```
+
+Then check the ingestor server:
+
+```bash
+kubectl run rag-ingestor-healthcheck -n rag --rm -i --restart=Never \
+  --image=curlimages/curl:8.10.1 -- \
+  curl -sf http://ingestor-server:8082/health
+```
+
+If the temporary pod cannot pull `curlimages/curl`, use the RAG server pod itself for the service-to-service check:
+
+```bash
+kubectl exec -n rag deploy/rag-server -- \
+  python - <<'PY'
+import urllib.request
+for url in ("http://rag-server:8081/health", "http://ingestor-server:8082/health"):
+    with urllib.request.urlopen(url, timeout=10) as r:
+        print(url, r.status)
+PY
+```
+
+Expected result: each endpoint returns HTTP `200` or a successful health response.
+
+Source reference: [Deploy NVIDIA RAG Blueprint on Kubernetes with Helm](https://docs.nvidia.com/rag/2.4.0/deploy-helm.html).

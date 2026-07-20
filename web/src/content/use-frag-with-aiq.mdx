@@ -1,67 +1,69 @@
-After the RAG Blueprint is running, upgrade AI-Q to use Foundational RAG.
+After the RAG Blueprint is running, upgrade AI-Q so its backend can use FRAG as a knowledge source. FRAG gives AI-Q access to the RAG server and ingestor APIs that were deployed in the previous section.
 
-The AI-Q Helm README documents the same-cluster pattern: set `CONFIG_FILE` to the FRAG config and point AI-Q at the RAG server and ingestor service DNS names.
+## 1. Inspect the FRAG values file
 
-## 1. Create FRAG values for AI-Q
+This repository includes a small AI-Q override file for FRAG integration:
 
 ```bash
-cat > aiq-frag-values.yaml <<'EOF'
-aiq:
-  apps:
-    backend:
-      env:
-        CONFIG_FILE: configs/config_web_frag.yml
-        RAG_SERVER_URL: http://rag-server.rag.svc.cluster.local:8081/v1
-        RAG_INGEST_URL: http://ingestor-server.rag.svc.cluster.local:8082/v1
-      imagePullSecrets:
-        - name: ngc-secret
-    frontend:
-      imagePullSecrets:
-        - name: ngc-secret
-EOF
+cat manifests/aiq-frag-values.yaml
 ```
 
-## 2. Upgrade AI-Q
+The key settings are:
+
+- `CONFIG_FILE: configs/config_web_frag.yml` selects the AI-Q backend workflow that knows how to use FRAG.
+- `RAG_SERVER_URL` points AI-Q to the RAG query service inside the cluster.
+- `RAG_INGEST_URL` points AI-Q to the RAG ingestion service inside the cluster.
+
+## 2. Confirm RAG service DNS
+
+AI-Q will call RAG through Kubernetes service DNS. Confirm the services exist:
+
+```bash
+kubectl get svc -n rag rag-server ingestor-server
+```
+
+The expected in-cluster URLs are:
+
+```text
+http://rag-server.rag.svc.cluster.local:8081/v1
+http://ingestor-server.rag.svc.cluster.local:8082/v1
+```
+
+## 3. Upgrade AI-Q
+
+Upgrade AI-Q with both the base lab values and the FRAG override file:
 
 ```bash
 helm upgrade --install aiq ./aiq2-web-2.0.0.tgz \
   -n ns-aiq \
   --wait --timeout 10m \
-  -f custom-values.yaml \
-  -f aiq-frag-values.yaml
+  -f manifests/aiq-values.yaml \
+  -f manifests/aiq-frag-values.yaml
 ```
 
 Verify the backend rolls out:
 
 ```bash
-kubectl rollout status deployment -n ns-aiq -l component=backend --timeout=5m
+kubectl rollout status deployment/aiq-backend -n ns-aiq --timeout=5m
 ```
+
+Confirm the backend received the FRAG environment variables:
 
 ```bash
-kubectl get pods -n ns-aiq
+kubectl exec -n ns-aiq deploy/aiq-backend -- \
+  sh -lc 'echo "CONFIG_FILE=$CONFIG_FILE"; echo "RAG_SERVER_URL=$RAG_SERVER_URL"; echo "RAG_INGEST_URL=$RAG_INGEST_URL"'
 ```
 
-## 3. Add a PDF to FRAG
+## 4. Add a document to FRAG
 
-Open the RAG UI by port-forwarding the frontend:
+Open the RAG UI from the Brev endpoint for port `3001` with the `/rag` path, then upload a PDF through the RAG UI.
 
-```bash
-kubectl port-forward -n rag svc/rag-frontend 3002:3000 --address 0.0.0.0
-```
+This uses the same Envoy Gateway entry point as AI-Q. Envoy routes `/aiq` to the AI-Q frontend and `/rag` to the RAG frontend, so you do not need a separate frontend port-forward for normal browser access.
 
-Open the Brev launchable endpoint for port `3002`, then upload a PDF through the RAG UI.
 
-If you prefer API testing, port-forward the ingestor:
+## 5. Test FRAG from the AI-Q UI
 
-```bash
-kubectl port-forward -n rag svc/ingestor-server 8082:8082 --address 0.0.0.0
-```
-
-Then use the RAG API documentation for the exact upload endpoint supported by your chart version.
-
-## 4. Test FRAG from the AI-Q UI
-
-Return to the AI-Q UI and ask a question that should require the PDF you uploaded.
+Return to the AI-Q UI at the Brev endpoint for port `3001` with the `/aiq` path. Ask a question that should require the PDF you uploaded.
 
 Example:
 
@@ -69,4 +71,18 @@ Example:
 Using the uploaded document, summarize the main problem, the proposed solution, and any implementation constraints.
 ```
 
-The expected behavior is that AI-Q routes the knowledge-backed part of the request through the RAG service and produces an answer grounded in the uploaded PDF.
+This is a good FRAG test because AI-Q should need the document corpus rather than a general web answer. The expected behavior is that AI-Q routes the knowledge-backed part of the request through the RAG service and produces an answer grounded in the uploaded PDF.
+
+Check AI-Q backend logs:
+
+```bash
+kubectl logs -n ns-aiq deploy/aiq-backend --since=10m | grep -Ei "frag|rag|knowledge|retriev|ingest|config_web_frag"
+```
+
+Check RAG server logs:
+
+```bash
+kubectl logs -n rag deploy/rag-server --since=10m | grep -Ei "generate|retriev|collection|query|citation"
+```
+
+If AI-Q does not appear to call RAG, re-check `CONFIG_FILE`, `RAG_SERVER_URL`, and `RAG_INGEST_URL` in the backend pod. If RAG receives the request but returns no useful context, confirm the document upload finished and that you are asking about content present in that document.

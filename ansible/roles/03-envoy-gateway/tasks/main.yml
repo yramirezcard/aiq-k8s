@@ -1,0 +1,70 @@
+---
+- name: Install and configure Envoy Gateway for application frontends
+  environment:
+    KUBECONFIG: "{{ k3s_kubeconfig }}"
+  block:
+    - name: Install Envoy Gateway controller and Gateway API CRDs
+      ansible.builtin.shell: |
+        helm upgrade --install envoy-gateway oci://docker.io/envoyproxy/gateway-helm \
+          --version v{{ envoy_gateway_version }} \
+          --namespace envoy-gateway-system --create-namespace --wait --timeout 8m
+      args:
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Wait for the Envoy Gateway controller
+      ansible.builtin.command: kubectl -n envoy-gateway-system rollout status deploy/envoy-gateway --timeout=180s
+      changed_when: false
+      failed_when: false
+
+    - name: Ensure Gateway namespace exists
+      ansible.builtin.command:
+        argv: [kubectl, create, namespace, "{{ envoy_gateway_ns }}"]
+      register: _gateway_ns
+      changed_when: _gateway_ns.rc == 0
+      failed_when: _gateway_ns.rc != 0 and 'AlreadyExists' not in _gateway_ns.stderr
+
+    - name: Ensure AI-Q namespace exists for the HTTPRoute
+      ansible.builtin.command:
+        argv: [kubectl, create, namespace, "{{ aiq_namespace }}"]
+      register: _aiq_ns
+      changed_when: _aiq_ns.rc == 0
+      failed_when: _aiq_ns.rc != 0 and 'AlreadyExists' not in _aiq_ns.stderr
+
+    - name: Ensure RAG namespace exists for the HTTPRoute
+      ansible.builtin.command:
+        argv: [kubectl, create, namespace, "{{ rag_namespace }}"]
+      register: _rag_ns
+      changed_when: _rag_ns.rc == 0
+      failed_when: _rag_ns.rc != 0 and 'AlreadyExists' not in _rag_ns.stderr
+
+    - name: Render Envoy Gateway manifests
+      ansible.builtin.template:
+        src: "{{ item }}.j2"
+        dest: "/tmp/aiq-envoy-{{ item }}"
+        mode: "0644"
+      loop:
+        - gatewayclass.yaml
+        - envoyproxy.yaml
+        - gateway.yaml
+        - httproute-aiq.yaml
+        - httproute-rag.yaml
+
+    - name: Apply Envoy Gateway manifests
+      ansible.builtin.command: kubectl apply -f /tmp/aiq-envoy-{{ item }}
+      loop:
+        - gatewayclass.yaml
+        - envoyproxy.yaml
+        - gateway.yaml
+        - httproute-aiq.yaml
+        - httproute-rag.yaml
+      register: _envoy_apply
+      changed_when: "'created' in _envoy_apply.stdout or 'configured' in _envoy_apply.stdout"
+
+    - name: Envoy Gateway endpoint summary
+      ansible.builtin.debug:
+        msg:
+          - "AI-Q frontend route: {{ aiq_route_path }} -> {{ aiq_frontend_service }}.{{ aiq_namespace }}:{{ aiq_frontend_service_port }}"
+          - "RAG frontend route: {{ rag_route_path }} -> {{ rag_frontend_service }}.{{ rag_namespace }}:{{ rag_frontend_service_port }}"
+          - "Envoy web NodePort: {{ envoy_web_nodeport }}"
+          - "setup.sh publishes Envoy as a real host socket for Brev."

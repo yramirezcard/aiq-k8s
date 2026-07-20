@@ -50,6 +50,11 @@ K3S_CHANNEL="${K3S_CHANNEL:-v1.34}"
 K3S_VERSION="${K3S_VERSION:-}"
 INSTALL_K3S="${INSTALL_K3S:-true}"
 INSTALL_HELM="${INSTALL_HELM:-true}"
+ENVOY_GATEWAY_ENABLED="${ENVOY_GATEWAY_ENABLED:-true}"
+ENVOY_HOST_PORT="${ENVOY_HOST_PORT:-3001}"
+ENVOY_WEB_NODEPORT="${ENVOY_WEB_NODEPORT:-30080}"
+AIQ_ROUTE_PATH="${AIQ_ROUTE_PATH:-/aiq}"
+RAG_ROUTE_PATH="${RAG_ROUTE_PATH:-/rag}"
 ENABLE_WORKSHOP="${ENABLE_WORKSHOP:-false}"
 WORKSHOP_PORT="${WORKSHOP_PORT:-3000}"
 
@@ -98,6 +103,10 @@ k3s_channel: $(yaml_quote "$K3S_CHANNEL")
 k3s_version: $(yaml_quote "$K3S_VERSION")
 install_k3s: ${INSTALL_K3S}
 install_helm: ${INSTALL_HELM}
+envoy_gateway_enabled: ${ENVOY_GATEWAY_ENABLED}
+envoy_web_nodeport: ${ENVOY_WEB_NODEPORT}
+aiq_route_path: $(yaml_quote "$AIQ_ROUTE_PATH")
+rag_route_path: $(yaml_quote "$RAG_ROUTE_PATH")
 EOF
 chmod 600 "$SECRETS"
 
@@ -112,6 +121,47 @@ TAGS_ARG=()
     -e @inventory/group_vars/secrets.yml \
     "${TAGS_ARG[@]}"
 ) || die "Ansible run failed. Fix the error above and re-run ./scripts/setup.sh"
+
+# ---- publish Envoy for Brev -------------------------------------------------
+# Brev exposes real host sockets. Kubernetes NodePorts are commonly kube-proxy
+# rules rather than listening processes, so publish the Envoy data-plane Service
+# through socat on a low host port.
+publish_envoy_socket() {
+  [[ "${ENVOY_GATEWAY_ENABLED}" == "true" ]] || return 0
+  command -v kubectl >/dev/null 2>&1 || { warn "kubectl not found; skipping Envoy host socket."; return 0; }
+  command -v socat >/dev/null 2>&1 || $SUDO apt-get install -y socat >/dev/null 2>&1 || true
+
+  local cip=""
+  for _ in {1..30}; do
+    cip="$(KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n envoy-gateway-system get svc \
+      -l gateway.envoyproxy.io/owning-gateway-name=aiq-gw \
+      -o jsonpath='{.items[0].spec.clusterIP}' 2>/dev/null || true)"
+    [[ -n "$cip" ]] && break
+    sleep 5
+  done
+
+  [[ -n "$cip" ]] || { warn "Envoy data-plane ClusterIP not found; skipping host socket."; return 0; }
+  log "Publishing Envoy routes on host :${ENVOY_HOST_PORT} (socat to ${cip}:80)"
+  $SUDO tee /etc/systemd/system/aiq-envoy-proxy.service >/dev/null <<EOF
+[Unit]
+Description=AI-Q/RAG Envoy host socket proxy for Brev
+After=k3s.service network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/socat -d TCP-LISTEN:${ENVOY_HOST_PORT},fork,reuseaddr,bind=0.0.0.0 TCP:${cip}:80
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  $SUDO systemctl daemon-reload
+  $SUDO systemctl enable aiq-envoy-proxy.service >/dev/null 2>&1 || true
+  $SUDO systemctl restart aiq-envoy-proxy.service
+}
+
+publish_envoy_socket
 
 # ---- teaching website (optional) -------------------------------------------
 deploy_workshop() {
@@ -185,6 +235,13 @@ $(log "Done. Kubernetes is running on this VM.")
 
   AI-Q
     Not installed by setup. The tutorial will guide deployment with kubectl and Helm.
+    Envoy route : http://${NODE_IP:-<vm-ip>}:${ENVOY_HOST_PORT}${AIQ_ROUTE_PATH}
+    expose port ${ENVOY_HOST_PORT} on Brev after AI-Q is deployed
+
+  RAG
+    Not installed by setup. The tutorial will guide deployment with kubectl and Helm.
+    Envoy route : http://${NODE_IP:-<vm-ip>}:${ENVOY_HOST_PORT}${RAG_ROUTE_PATH}
+    uses the same exposed Brev port ${ENVOY_HOST_PORT}
 
 $( [[ "${ENABLE_WORKSHOP}" == "true" ]] && printf '  Teaching site\n    http://%s:%s/\n    expose port %s on Brev to open it from your browser\n\n' "${NODE_IP:-<vm-ip>}" "${WORKSHOP_PORT}" "${WORKSHOP_PORT}" )
 

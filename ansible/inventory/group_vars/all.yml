@@ -10,3 +10,17 @@ k3s_channel: "v1.34"
 k3s_version: ""
 k3s_config_dir: /etc/rancher/k3s
 k3s_kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+# Envoy Gateway exposes app frontends through a real host socket published by setup.sh.
+envoy_gateway_enabled: true
+envoy_gateway_version: "1.4.6"
+envoy_gateway_ns: aiq-gateway
+envoy_web_nodeport: 30080
+aiq_namespace: ns-aiq
+aiq_frontend_service: aiq-frontend
+aiq_frontend_service_port: 3001
+aiq_route_path: /aiq
+rag_namespace: rag
+rag_frontend_service: rag-frontend
+rag_frontend_service_port: 3000
+rag_route_path: /rag
