@@ -65,7 +65,15 @@ kubectl get gateway -n aiq-gateway
 kubectl get httproute -n ns-aiq aiq-frontend
 ```
 
-Open the Brev launchable endpoint for port `3001`, then add `/aiq` to the URL path. 
+Open the Brev launchable endpoint for port `3001`, then add `/aiq` to the URL path.
+
+If the page loads but looks unstyled, the initial HTML is reaching AI-Q but static assets are not. The AI-Q frontend is a Next.js app built for root-path serving, so the Envoy route also forwards root-level frontend paths such as `/_next`, `/api`, and `/favicon.ico` to `aiq-frontend`.
+
+Validate that those extra route matches are present:
+
+```bash
+kubectl get httproute -n ns-aiq aiq-frontend -o yaml | grep -nE '/aiq|/_next|/api|favicon'
+```
 
 ## 4. Test a meta-response route
 

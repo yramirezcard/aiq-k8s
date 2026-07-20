@@ -32,13 +32,6 @@ helm show values https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blue
   --password "$NGC_API_KEY" | sed -n '1,220p'
 ```
 
-Search the defaults for endpoint, vector database, and GPU-related settings:
-
-```bash
-helm show values https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
-  --username '$oauthtoken' \
-  --password "$NGC_API_KEY" | grep -nEi 'serverurl|vectorstore|gpu|nimOperator|milvus|rerank|embedding|llm'
-```
 
 ## 3. Inspect the lab values file
 
@@ -54,6 +47,7 @@ The important settings are:
 - Local NIM services disabled: the `nimOperator` overrides disable local model-serving pods so the lab does not require GPUs or large model caches.
 - CPU vector database path: `APP_VECTORSTORE_ENABLEGPUSEARCH` and `APP_VECTORSTORE_ENABLEGPUINDEX` are set to `False`, and the Milvus image is set to the CPU image tag.
 - Text-focused ingestion: table, chart, image, and infographic extraction are disabled so the launchable can focus on document text ingestion without requiring extraction NIMs.
+- Smaller NV-Ingest footprint: the upstream NV-Ingest defaults request much larger resources than this launchable provides. The lab values reduce `nv-ingest.resources`, `MAX_INGEST_PROCESS_WORKERS`, `NV_INGEST_MAX_UTIL`, and `PDF_SPLIT_PAGE_COUNT` for an 8 CPU / 32 GiB VM.
 - Secrets are not stored in the file. The API key is passed through Helm flags during installation.
 
 ## 4. Install the RAG Blueprint
@@ -123,6 +117,31 @@ If a pod is not ready, inspect events and logs:
 
 ```bash
 kubectl get events -n rag --sort-by='.lastTimestamp'
+```
+
+For `Pending` pods, describe the pod and look at the scheduler message:
+
+```bash
+kubectl describe pod -n rag <pending-pod-name>
+```
+
+If you see `Insufficient cpu` or `Insufficient memory` for `rag-nv-ingest`, the chart is still using resource requests that are too large for the launchable. Confirm the rendered values:
+
+```bash
+helm get values rag -n rag --all | grep -nE "nv-ingest:|resources:|MAX_INGEST_PROCESS_WORKERS|NV_INGEST_MAX_UTIL|PDF_SPLIT_PAGE_COUNT" -A12 -B2
+```
+
+Then reapply the lab values:
+
+```bash
+helm upgrade --install rag -n rag \
+  https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
+  --username '$oauthtoken' \
+  --password "$NGC_API_KEY" \
+  --set imagePullSecret.password="$NGC_API_KEY" \
+  --set ngcApiSecret.password="$NGC_API_KEY" \
+  -f manifests/rag-values.yaml \
+  --wait --timeout 20m
 ```
 
 ```bash

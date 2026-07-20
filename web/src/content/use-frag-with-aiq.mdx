@@ -50,8 +50,8 @@ kubectl rollout status deployment/aiq-backend -n ns-aiq --timeout=5m
 Confirm the backend received the FRAG environment variables:
 
 ```bash
-kubectl exec -n ns-aiq deploy/aiq-backend -- \
-  sh -lc 'echo "CONFIG_FILE=$CONFIG_FILE"; echo "RAG_SERVER_URL=$RAG_SERVER_URL"; echo "RAG_INGEST_URL=$RAG_INGEST_URL"'
+kubectl get deploy aiq-backend -n ns-aiq \
+  -o jsonpath='CONFIG_FILE={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="CONFIG_FILE")].value}{"\n"}RAG_SERVER_URL={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="RAG_SERVER_URL")].value}{"\n"}RAG_INGEST_URL={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="RAG_INGEST_URL")].value}{"\n"}'
 ```
 
 ## 4. Add a document to FRAG

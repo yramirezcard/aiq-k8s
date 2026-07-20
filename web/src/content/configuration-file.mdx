@@ -81,29 +81,39 @@ kubectl rollout status deployment/aiq-backend -n ns-aiq --timeout=5m
 Check that the backend sees the custom `CONFIG_FILE` path:
 
 ```bash
-kubectl exec -n ns-aiq deploy/aiq-backend -- \
-  sh -lc 'echo "CONFIG_FILE=$CONFIG_FILE"'
+kubectl get deploy aiq-backend -n ns-aiq \
+  -o jsonpath='{.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="CONFIG_FILE")].value}{"\n"}'
 ```
 
 Expected output:
 
 ```text
-CONFIG_FILE=/app/custom-config/config_lab_custom.yml
+/app/custom-config/config_lab_custom.yml
 ```
 
-Verify the mounted file content from inside the pod:
+Verify the ConfigMap content that Kubernetes mounted into the pod:
 
 ```bash
-kubectl exec -n ns-aiq deploy/aiq-backend -- \
-  sh -lc 'grep -nE "level: DEBUG|description:|max_tool_iterations: 4|top_k: 3" "$CONFIG_FILE"'
+kubectl get configmap aiq-custom-config -n ns-aiq \
+  -o jsonpath='{.data.config_lab_custom\.yml}' | grep -nE "level: DEBUG|description:|max_tool_iterations: 4|top_k: 3"
 ```
 
 You should see the custom values from `manifests/configs/config_lab_custom.yml`.
 
-You can also inspect the rendered deployment:
+You can also inspect the rendered deployment to verify the environment variable, volume mount, and ConfigMap volume:
 
 ```bash
 kubectl get deploy aiq-backend -n ns-aiq -o yaml | grep -nE "CONFIG_FILE|aiq-custom-config|custom-config" -A4 -B4
+```
+
+The backend image does not include a shell, so `kubectl exec ... sh` is expected to fail. If you need to inspect the mounted file from the pod filesystem itself, use an ephemeral debug container:
+
+```bash
+POD="$(kubectl get pod -n ns-aiq -l component=backend -o jsonpath='{.items[0].metadata.name}')"
+
+kubectl debug -n ns-aiq "$POD" \
+  --image=busybox:1.36 --target=backend -- \
+  sh -c 'sed -n "1,220p" /proc/1/root/app/custom-config/config_lab_custom.yml'
 ```
 
 ## 6. Test the change from the AI-Q UI

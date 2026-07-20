@@ -22,3 +22,20 @@ spec:
       backendRefs:
         - name: {{ aiq_frontend_service }}
           port: {{ aiq_frontend_service_port }}
+    # The AI-Q frontend is a Next.js app built for root-path serving. When the
+    # initial page is reached through /aiq, the browser still requests assets
+    # and API routes from root-level paths such as /_next and /api. Route those
+    # requests to the same frontend service so CSS/JS loads correctly.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/_next"
+        - path:
+            type: PathPrefix
+            value: "/api"
+        - path:
+            type: Exact
+            value: "/favicon.ico"
+      backendRefs:
+        - name: {{ aiq_frontend_service }}
+          port: {{ aiq_frontend_service_port }}

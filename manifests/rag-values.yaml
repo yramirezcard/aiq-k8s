@@ -33,6 +33,13 @@ envVars:
   APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
 
 ingestor-server:
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
   envVars:
     # Empty endpoint URLs instruct the ingestor to use NVIDIA hosted endpoints.
     APP_EMBEDDINGS_SERVERURL: ""
@@ -75,6 +82,17 @@ nimOperator:
     enabled: false
 
 nv-ingest:
+  # The upstream NV-Ingest chart defaults are intended for much larger systems
+  # and request 24 CPUs / 24 GiB memory. This lab targets a single 8 CPU / 32 GiB
+  # Brev VM, so keep ingestion text-focused and resource requests modest.
+  resources:
+    requests:
+      cpu: "1500m"
+      memory: "6Gi"
+    limits:
+      cpu: "3"
+      memory: "10Gi"
+  tmpDirSize: "20Gi"
   milvusDeployed: true
   milvus:
     image:
@@ -98,3 +116,6 @@ nv-ingest:
     EMBEDDING_NIM_ENDPOINT: ""
     VLM_CAPTION_ENDPOINT: ""
     COMPONENTS_TO_READY_CHECK: ""
+    MAX_INGEST_PROCESS_WORKERS: "2"
+    NV_INGEST_MAX_UTIL: "2"
+    PDF_SPLIT_PAGE_COUNT: "8"
