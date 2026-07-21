@@ -1,21 +1,18 @@
-# Mount a local AI-Q config file into the backend pod and make CONFIG_FILE
+# Mount a local AI-Q config file into the pods and make the backend CONFIG_FILE
 # point to the mounted path.
 #
 # The ConfigMap itself is created from manifests/configs/config_lab_custom.yml
-# in the tutorial commands. This values file only wires that ConfigMap into
-# the AI-Q backend deployment.
+# in the tutorial commands. Use fusionConfig instead of app-level volumes or
+# volumeMounts so the chart preserves existing mounts such as postgres-init.
 
 aiq:
+  fusionConfig:
+    enabled: true
+    volumeName: aiq-custom-config
+    mountPath: /app/custom-config
+    configMapName: aiq-custom-config
+
   apps:
     backend:
       env:
         CONFIG_FILE: /app/custom-config/config_lab_custom.yml
-      volumeMounts:
-        - name: aiq-custom-config
-          mountPath: /app/custom-config/config_lab_custom.yml
-          subPath: config_lab_custom.yml
-          readOnly: true
-      volumes:
-        - name: aiq-custom-config
-          configMap:
-            name: aiq-custom-config

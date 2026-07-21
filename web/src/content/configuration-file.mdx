@@ -29,21 +29,34 @@ This lab config changes a few values that are easy to verify:
 
 The practical impact is that AI-Q starts in a more document-focused posture: the Knowledge Base is enabled by default, Web Search is not selected by default, RAG retrieval returns fewer chunks, and shallow research has a smaller iteration budget.
 
-## 2. Inspect values file with VolumeMount
+## 2. Inspect the config mount values file
 
-The Helm override file does not contain the whole config. It only tells the backend pod where to mount the ConfigMap and what `CONFIG_FILE` path to use:
+The Helm override file does not contain the whole config. It tells the chart to mount the ConfigMap through `fusionConfig`, then points the backend `CONFIG_FILE` environment variable at the mounted file:
 
 ```bash
 cat manifests/aiq-custom-config-values.yaml
 ```
 
-The important value is:
+The important values are:
 
 ```yaml
-CONFIG_FILE: /app/custom-config/config_lab_custom.yml
+aiq:
+  fusionConfig:
+    enabled: true
+    volumeName: aiq-custom-config
+    mountPath: /app/custom-config
+    configMapName: aiq-custom-config
+  apps:
+    backend:
+      env:
+        CONFIG_FILE: /app/custom-config/config_lab_custom.yml
 ```
 
-That path must exist inside the backend container after the ConfigMap is mounted. This values file only changes where `CONFIG_FILE` points and how the file is mounted; it does not define `RAG_SERVER_URL`, `RAG_INGEST_URL`, or `COLLECTION_NAME`. Those still come from `manifests/aiq-frag-values.yaml`, so the Helm upgrade below must include both files.
+That path must exist inside the backend container after the ConfigMap is mounted.
+
+Use `fusionConfig` for this chart instead of overriding `apps.backend.volumeMounts` or `apps.backend.volumes` directly. The chart already defines volumes and mounts for other parts of the deployment, including PostgreSQL initialization. Replacing those lists can produce errors such as `volumeMounts[0].name: Not found: "postgres-init"`.
+
+This values file only changes where `CONFIG_FILE` points and how the file is mounted; it does not define `RAG_SERVER_URL`, `RAG_INGEST_URL`, or `COLLECTION_NAME`. Those still come from `manifests/aiq-frag-values.yaml`, so the Helm upgrade below must include both files.
 
 ## 3. Create the ConfigMap
 
@@ -76,7 +89,7 @@ helm upgrade --install aiq ./aiq2-web-2.0.0.tgz \
   -f manifests/aiq-custom-config-values.yaml
 ```
 
-The order matters. `manifests/aiq-frag-values.yaml` keeps the RAG URLs and collection name, while `manifests/aiq-custom-config-values.yaml` overrides only `CONFIG_FILE` and mounts the local config file.
+The order matters. `manifests/aiq-frag-values.yaml` keeps the RAG URLs and collection name, while `manifests/aiq-custom-config-values.yaml` enables `fusionConfig`, mounts the ConfigMap, and overrides only backend `CONFIG_FILE`.
 
 Wait for the backend rollout:
 
@@ -108,7 +121,7 @@ kubectl get configmap aiq-custom-config -n ns-aiq \
 
 You should see the custom values from `manifests/configs/config_lab_custom.yml`.
 
-You can also inspect the rendered deployment to verify the environment variable, volume mount, and ConfigMap volume:
+You can also inspect the rendered deployment to verify the environment variable, `fusionConfig` volume mount, and ConfigMap volume:
 
 ```bash
 kubectl get deploy aiq-backend -n ns-aiq -o yaml | grep -nE "CONFIG_FILE|aiq-custom-config|custom-config" -A4 -B4

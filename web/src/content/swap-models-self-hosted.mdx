@@ -333,13 +333,24 @@ Inspect the values override:
 cat manifests/aiq-local-nim-values.yaml
 ```
 
-The values file changes `CONFIG_FILE` and mounts the ConfigMap:
+The values file enables the chart's `fusionConfig`, mounts the ConfigMap, and changes backend `CONFIG_FILE`:
 
 ```yaml
-CONFIG_FILE: /app/custom-config/config-local-nim.yml
+aiq:
+  fusionConfig:
+    enabled: true
+    volumeName: aiq-local-nim-config
+    mountPath: /app/custom-config
+    configMapName: aiq-local-nim-config
+  apps:
+    backend:
+      env:
+        CONFIG_FILE: /app/custom-config/config-local-nim.yml
 ```
 
 It does not remove the FRAG values. Keep `manifests/aiq-frag-values.yaml` in the Helm command so the Knowledge Base still has `RAG_SERVER_URL`, `RAG_INGEST_URL`, and `COLLECTION_NAME`.
+
+Avoid overriding `apps.backend.volumeMounts` or `apps.backend.volumes` directly. Those are chart-managed lists, and replacing them can remove existing mounts that other containers rely on.
 
 ## 12. Upgrade AI-Q to use the local NIM
 

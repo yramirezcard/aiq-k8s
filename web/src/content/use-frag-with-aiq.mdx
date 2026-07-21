@@ -96,15 +96,6 @@ Return to the AI-Q UI at the Brev endpoint for port `3001` with the `/aiq` path.
 
 <AppLaunchButton label="Open AI-Q UI" path="/aiq" port={3001} />
 
-Success in this section means these signals line up:
-
-- The AI-Q backend uses `CONFIG_FILE=configs/config_web_frag.yml`.
-- `RAG_SERVER_URL` includes `/v1` because it targets the RAG query API.
-- `RAG_INGEST_URL` does not include `/v1` because file and collection routes are served from the ingestor root.
-- `COLLECTION_NAME` matches the collection you expect AI-Q to query.
-- The RAG ingestor `/collections` response shows file metadata after upload.
-- While AI-Q is answering, the UI mentions the uploaded file or Knowledge Base source instead of only **Web Search**.
-
 Follow this sequence:
 
 1. Open **Data Sources**.
