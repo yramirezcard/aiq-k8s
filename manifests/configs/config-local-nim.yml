@@ -1,8 +1,8 @@
 # Local-NIM AI-Q configuration used by Part IV of this tutorial.
 #
-# This file keeps the same FRAG-aware workflow as config_lab_custom.yml, but
-# swaps the primary LLM endpoint from NVIDIA hosted APIs to a self-hosted NIM
-# running in the cluster.
+# This file keeps the same AI-Q release/2.1 FRAG-aware workflow structure as
+# config_lab_custom.yml, but swaps the primary LLM endpoint from NVIDIA hosted
+# APIs to a self-hosted NIM running in the cluster.
 
 general:
   use_uvloop: true
@@ -70,26 +70,33 @@ functions:
   knowledge_search:
     _type: knowledge_retrieval
     backend: foundational_rag
-    collection_name: ${COLLECTION_NAME:-default}
+    collection_name: ${COLLECTION_NAME:-test_collection}
     top_k: 3
-    rag_url: ${RAG_SERVER_URL:-http://localhost:8081/v1}
+    rag_url: ${RAG_SERVER_URL:-http://localhost:8081}
     ingest_url: ${RAG_INGEST_URL:-http://localhost:8082}
     timeout: 300
 
   intent_classifier:
     _type: intent_classifier
     llm: local_nemotron_nano_llm
+    # tools: omitted -> inherits all from data_source_registry
+    # exclude_tools: []
 
   clarifier_agent:
     _type: clarifier_agent
     llm: local_nemotron_nano_llm
-    max_turns: 3
+    planner_llm: local_nemotron_nano_llm
+    # tools: omitted -> inherits all from data_source_registry
+    # exclude_tools: []
+    max_turns: 2
+    enable_plan_approval: true
     log_response_max_chars: 2000
     verbose: true
 
   shallow_research_agent:
     _type: shallow_research_agent
     llm: local_nemotron_nano_llm
+    # tools: omitted -> inherits all from data_source_registry
     exclude_tools:
       - advanced_web_search_tool
     max_llm_turns: 6
@@ -97,14 +104,13 @@ functions:
 
   deep_research_agent:
     _type: deep_research_agent
-    enable_citation_verification: true
     orchestrator_llm: local_nemotron_nano_llm
-    source_router_llm: local_nemotron_nano_llm
     researcher_llm: local_nemotron_nano_llm
     planner_llm: local_nemotron_nano_llm
-    writer_llm: local_nemotron_nano_llm
+    # tools: omitted -> inherits all from data_source_registry
     exclude_tools:
       - web_search_tool
+    max_loops: 2
 
 workflow:
   _type: chat_deepresearcher_agent

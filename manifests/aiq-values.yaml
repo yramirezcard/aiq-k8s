@@ -3,6 +3,17 @@ aiq:
     backend:
       imagePullSecrets:
         - name: ngc-secret
+      deploymentStrategy:
+        type: Recreate
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "2"
+          memory: 3Gi
+      env:
+        DASK_NTHREADS: "2"
     frontend:
       imagePullSecrets:
         - name: ngc-secret

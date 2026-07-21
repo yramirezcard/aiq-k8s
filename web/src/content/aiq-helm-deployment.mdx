@@ -68,7 +68,7 @@ kubectl get secret ngc-secret -n ns-aiq
 Pull the chart archive using your NGC API key:
 
 ```bash
-helm pull https://helm.ngc.nvidia.com/nvidia/blueprint/charts/aiq2-web-2.0.0.tgz \
+helm pull https://helm.ngc.nvidia.com/nvidia/blueprint/charts/aiq2-web-2.1.0.tgz \
   --username '$oauthtoken' \
   --password "$NGC_API_KEY"
 ```
@@ -76,7 +76,7 @@ helm pull https://helm.ngc.nvidia.com/nvidia/blueprint/charts/aiq2-web-2.0.0.tgz
 Confirm the archive exists:
 
 ```bash
-ls -lh aiq2-web-2.0.0.tgz
+ls -lh aiq2-web-2.1.0.tgz
 ```
 
 ## 4. Inspect the custom values file
@@ -92,7 +92,7 @@ The file contains the launchable-specific overrides used by this tutorial, inclu
 You can still inspect the chart defaults for comparison:
 
 ```bash
-helm show values aiq2-web-2.0.0.tgz | sed -n '1,220p'
+helm show values aiq2-web-2.1.0.tgz | sed -n '1,220p'
 ```
 
 ## 5. Inspect default configuration file
@@ -141,9 +141,19 @@ The `configuration file` is the AI-Q workflow definition for the backend. It def
       </tr>
       <tr>
         <td className="border border-[var(--color-line)] p-3 font-mono text-[var(--color-nv-bright)]">functions</td>
-        <td className="border border-[var(--color-line)] p-3">Tools, data sources, and agent definitions. This is where web search, Knowledge Layer retrieval, and the UI data-source registry are wired.</td>
+        <td className="border border-[var(--color-line)] p-3">Data-source registry entries, tools, and agent definitions. This is where UI source toggles, web search, Knowledge Layer retrieval, intent classification, and research agents are wired.</td>
         <td className="border border-[var(--color-line)] p-3">
           <pre className="rounded-md bg-[var(--color-code-bg)] p-3 text-xs text-[var(--color-code-fg)]"><code>{`functions:
+  data_sources:
+    _type: data_source_registry
+    sources:
+      - id: web_search
+        tools:
+          - web_search_tool
+      - id: knowledge_layer
+        tools:
+          - knowledge_search
+
   web_search_tool:
     _type: tavily_web_search
     max_results: 5
@@ -167,9 +177,8 @@ The `configuration file` is the AI-Q workflow definition for the backend. It def
   shallow_research_agent:
     _type: shallow_research_agent
     llm: nemotron_nano_llm
-    tools:
-      - web_search_tool
-      - knowledge_search
+    exclude_tools:
+      - advanced_web_search_tool
     max_tool_iterations: 4`}</code></pre>
         </td>
       </tr>
@@ -201,7 +210,7 @@ The source repository publishes the packaged config examples under [configs/](ht
 Start by inspecting the backend environment values from the chart defaults. The backend loads its AI-Q workflow configuration from the `CONFIG_FILE` environment variable:
 
 ```bash
-helm show values aiq2-web-2.0.0.tgz | grep -B4 "CONFIG_FILE"
+helm show values aiq2-web-2.1.0.tgz | grep -B4 "CONFIG_FILE"
 ```
 
 You should see the default non-FRAG web config:
@@ -224,7 +233,7 @@ When you adapt the lab later you will change the default `CONFIG_FILE` to integr
 Install the release with the provided values file:
 
 ```bash
-helm upgrade --install aiq ./aiq2-web-2.0.0.tgz \
+helm upgrade --install aiq ./aiq2-web-2.1.0.tgz \
   -n ns-aiq \
   --wait --timeout 10m \
   -f manifests/aiq-values.yaml

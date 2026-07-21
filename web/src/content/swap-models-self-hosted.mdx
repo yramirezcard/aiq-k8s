@@ -1,6 +1,6 @@
 This advanced optional section moves AI-Q from NVIDIA hosted model endpoints to a self-hosted NIM running inside the Kubernetes cluster. The goal is to keep the AI-Q workflow and FRAG integration you already built, then swap only the LLM endpoint that AI-Q calls.
 
-Source references: [AI-Q Swapping Models](https://docs.nvidia.com/aiq-blueprint/2.0.0/customization/swapping-models.html), [NIM Operator DRA Support](https://docs.nvidia.com/nim-operator/latest/dra.html#configure-nim-service-to-use-the-dra-resource), and the NIM Operator [DRA NIMService sample](https://github.com/NVIDIA/k8s-nim-operator/blob/main/config/samples/nim/serving/advanced/dra/auto-creation/example1/llm.yaml#L25).
+Source references: [AI-Q Swapping Models](https://docs.nvidia.com/aiq-blueprint/2.1.0/customization/swapping-models.html), [NIM Operator DRA Support](https://docs.nvidia.com/nim-operator/latest/dra.html#configure-nim-service-to-use-the-dra-resource), and the NIM Operator [DRA NIMService sample](https://github.com/NVIDIA/k8s-nim-operator/blob/main/config/samples/nim/serving/advanced/dra/auto-creation/example1/llm.yaml#L25).
 
 <Callout type="warn" title="GPU path">
   The main lab uses NVIDIA hosted endpoints and does not require GPUs. This section requires a GPU-capable Kubernetes cluster. Run it only in a Brev environment with suitable NVIDIA GPU capacity.
@@ -315,7 +315,9 @@ llms:
     base_url: "http://nemotron-3-nano.nim-service.svc.cluster.local:8000/v1"
 ```
 
-The config keeps the FRAG-aware Knowledge Base settings from the previous section, but all AI-Q agents now point to `local_nemotron_nano_llm`. The impact is that AI-Q still uses RAG for uploaded files, while language model inference is served by the local NIM instead of the hosted API.
+The config keeps the FRAG-aware Knowledge Base settings and the AI-Q 2.1 `data_sources` registry from the previous section, but all AI-Q agents now point to `local_nemotron_nano_llm`.
+
+The impact is that AI-Q still uses RAG for uploaded files, while language model inference is served by the local NIM instead of the hosted API.
 
 ## 11. Mount the local-NIM config into AI-Q
 
@@ -357,7 +359,7 @@ Avoid overriding `apps.backend.volumeMounts` or `apps.backend.volumes` directly.
 Upgrade the AI-Q release:
 
 ```bash
-helm upgrade --install aiq ./aiq2-web-2.0.0.tgz \
+helm upgrade --install aiq ./aiq2-web-2.1.0.tgz \
   -n ns-aiq \
   --wait --timeout 10m \
   -f manifests/aiq-values.yaml \

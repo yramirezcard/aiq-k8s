@@ -35,7 +35,7 @@ http://ingestor-server.rag.svc.cluster.local:8082
 Upgrade AI-Q with both the base lab values and the FRAG override file:
 
 ```bash
-helm upgrade --install aiq ./aiq2-web-2.0.0.tgz \
+helm upgrade --install aiq ./aiq2-web-2.1.0.tgz \
   -n ns-aiq \
   --wait --timeout 10m \
   -f manifests/aiq-values.yaml \
