@@ -1,0 +1,20 @@
+# Mount the local-NIM AI-Q config and point CONFIG_FILE at that mounted file.
+#
+# Keep this file layered on top of manifests/aiq-values.yaml and
+# manifests/aiq-frag-values.yaml. The FRAG values still provide RAG_SERVER_URL,
+# RAG_INGEST_URL, and COLLECTION_NAME.
+
+aiq:
+  apps:
+    backend:
+      env:
+        CONFIG_FILE: /app/custom-config/config-local-nim.yml
+      volumeMounts:
+        - name: aiq-local-nim-config
+          mountPath: /app/custom-config/config-local-nim.yml
+          subPath: config-local-nim.yml
+          readOnly: true
+      volumes:
+        - name: aiq-local-nim-config
+          configMap:
+            name: aiq-local-nim-config

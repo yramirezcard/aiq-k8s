@@ -8,8 +8,8 @@ The wrapper intentionally stays small because Brev setup fields are size-limited
 
 ## Suggested Ports
 
-- `3000`: future tutorial UI with embedded terminals.
-- `8000`: AI-Q backend port-forward target used by the tutorial after the user deploys AI-Q.
+- `3000`: tutorial UI with embedded terminals.
+- `3001`: Envoy entry point for deployed application frontends, including `/aiq` and `/rag`.
 
 ## Suggested Environment Variables
 
@@ -17,4 +17,8 @@ The wrapper intentionally stays small because Brev setup fields are size-limited
 - `K3S_VERSION`
 - `ENABLE_WORKSHOP`
 - `WORKSHOP_PORT`
+- `ENVOY_HOST_PORT`
+- `ENVOY_WEB_NODEPORT`
+- `AIQ_ROUTE_PATH`
+- `RAG_ROUTE_PATH`
 - `ANSIBLE_TAGS`

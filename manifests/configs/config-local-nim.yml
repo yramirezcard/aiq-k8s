@@ -1,0 +1,114 @@
+# Local-NIM AI-Q configuration used by Part IV of this tutorial.
+#
+# This file keeps the same FRAG-aware workflow as config_lab_custom.yml, but
+# swaps the primary LLM endpoint from NVIDIA hosted APIs to a self-hosted NIM
+# running in the cluster.
+
+general:
+  use_uvloop: true
+  telemetry:
+    logging:
+      console:
+        _type: console
+        level: DEBUG
+  front_end:
+    _type: aiq_api
+    runner_class: aiq_api.plugin.AIQAPIWorker
+    db_url: ${NAT_JOB_STORE_DB_URL:-sqlite+aiosqlite:///./jobs.db}
+    expiry_seconds: 86400
+    cors:
+      allow_origin_regex: 'http://localhost(:\d+)?|http://127.0.0.1(:\d+)?'
+      allow_methods:
+        - GET
+        - POST
+        - DELETE
+        - OPTIONS
+      allow_headers:
+        - "*"
+      allow_credentials: true
+      expose_headers:
+        - "*"
+
+llms:
+  local_nemotron_nano_llm:
+    _type: nim
+    model_name: nvidia/nemotron-3-nano-30b-a3b
+    base_url: "http://nemotron-3-nano.nim-service.svc.cluster.local:8000/v1"
+    temperature: 0.7
+    top_p: 0.7
+    max_tokens: 8192
+    num_retries: 5
+
+functions:
+  data_sources:
+    _type: data_source_registry
+    sources:
+      - id: web_search
+        name: "Web Search"
+        description: "Search the web for real-time information."
+        default_enabled: false
+        tools:
+          - web_search_tool
+          - advanced_web_search_tool
+      - id: knowledge_layer
+        name: "Knowledge Base"
+        description: "Search uploaded documents and files."
+        default_enabled: true
+        tools:
+          - knowledge_search
+
+  web_search_tool:
+    _type: tavily_web_search
+    max_results: 3
+    max_content_length: 1000
+
+  advanced_web_search_tool:
+    _type: tavily_web_search
+    max_results: 2
+    advanced_search: true
+
+  knowledge_search:
+    _type: knowledge_retrieval
+    backend: foundational_rag
+    collection_name: ${COLLECTION_NAME:-default}
+    top_k: 3
+    rag_url: ${RAG_SERVER_URL:-http://localhost:8081/v1}
+    ingest_url: ${RAG_INGEST_URL:-http://localhost:8082}
+    timeout: 300
+
+  intent_classifier:
+    _type: intent_classifier
+    llm: local_nemotron_nano_llm
+
+  clarifier_agent:
+    _type: clarifier_agent
+    llm: local_nemotron_nano_llm
+    max_turns: 3
+    log_response_max_chars: 2000
+    verbose: true
+
+  shallow_research_agent:
+    _type: shallow_research_agent
+    llm: local_nemotron_nano_llm
+    exclude_tools:
+      - advanced_web_search_tool
+    max_llm_turns: 6
+    max_tool_iterations: 4
+
+  deep_research_agent:
+    _type: deep_research_agent
+    enable_citation_verification: true
+    orchestrator_llm: local_nemotron_nano_llm
+    source_router_llm: local_nemotron_nano_llm
+    researcher_llm: local_nemotron_nano_llm
+    planner_llm: local_nemotron_nano_llm
+    writer_llm: local_nemotron_nano_llm
+    exclude_tools:
+      - web_search_tool
+
+workflow:
+  _type: chat_deepresearcher_agent
+  enable_escalation: true
+  enable_clarifier: true
+  use_async_deep_research: true
+  checkpoint_db: ${AIQ_CHECKPOINT_DB:-./checkpoints.db}

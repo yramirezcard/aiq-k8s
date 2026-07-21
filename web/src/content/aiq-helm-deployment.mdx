@@ -6,7 +6,7 @@ Before running the deployment commands, make sure these values are available in 
 
 `NGC_API_KEY` is used to authenticate to NGC and NVIDIA hosted model endpoints.
 
-If you do not have a key yet, follow NVIDIA's [Generating NGC API Keys](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#generating-ngc-api-keys) documentation. You can manage keys from the [NGC API Keys page](https://org.ngc.nvidia.com/account/api-keys);  for this lab, the key needs access to NGC Catalog artifacts and NVIDIA hosted API endpoints.
+If you do not have a key yet, follow NVIDIA's [Generating NGC API Keys](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#generating-ngc-api-keys) documentation. You can manage keys from the [NGC API Keys page](https://org.ngc.nvidia.com/account/api-keys); for this lab, the key needs access to NGC Catalog artifacts and NVIDIA hosted API endpoints.
 
 ```bash-ref
 export NGC_API_KEY="<your-ngc-or-nvidia-api-key>"
@@ -29,7 +29,7 @@ Do not paste real keys into shared logs or committed files. The commands below r
 ## 1. Create the namespace
 
 ```bash
-kubectl create namespace ns-aiq
+kubectl create namespace ns-aiq --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 ## 2. Create application secrets
@@ -41,7 +41,8 @@ kubectl create secret generic aiq-credentials -n ns-aiq \
   --from-literal=NVIDIA_API_KEY="$NGC_API_KEY" \
   --from-literal=TAVILY_API_KEY="$TAVILY_API_KEY" \
   --from-literal=DB_USER_NAME="aiq" \
-  --from-literal=DB_USER_PASSWORD="aiq_dev"
+  --from-literal=DB_USER_PASSWORD="aiq_dev" \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 ```bash
@@ -54,11 +55,12 @@ Create the NGC image pull secret:
 kubectl create secret docker-registry ngc-secret -n ns-aiq \
   --docker-server=nvcr.io \
   --docker-username='$oauthtoken' \
-  --docker-password="$NGC_API_KEY"
+  --docker-password="$NGC_API_KEY" \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 ```bash
-kubectl get secret  ngc-secret -n ns-aiq 
+kubectl get secret ngc-secret -n ns-aiq
 ```
 
 ## 3. Pull the AI-Q Helm chart
@@ -85,7 +87,7 @@ The provided `manifests/aiq-values.yaml` is the values file you will pass to Hel
 cat manifests/aiq-values.yaml
 ```
 
-The file contains the launchable-specific overrides used by this tutorial, including image pull secret configuration for the AI-Q application components. The AI-Q frontend service keeps the chart's default port `3000`; the setup script exposes the UI externally through Envoy Gateway on host port `3001` at `/aiq`.
+The file contains the launchable-specific overrides used by this tutorial, including image pull secret configuration for the AI-Q application components. 
 
 You can still inspect the chart defaults for comparison:
 
@@ -93,7 +95,108 @@ You can still inspect the chart defaults for comparison:
 helm show values aiq2-web-2.0.0.tgz | sed -n '1,220p'
 ```
 
-## 5. Inspect default hosted endpoint configuration
+## 5. Inspect default configuration file
+
+The `configuration file` is the AI-Q workflow definition for the backend. It defines runtime behavior, model endpoints, tools, agents, and the top-level workflow. These are the main sections to understand:
+
+<div className="not-prose my-6 overflow-x-auto">
+  <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+    <thead>
+      <tr>
+        <th className="border border-[var(--color-line)] bg-[var(--color-panel)] p-3 text-[var(--color-fg)]">Section</th>
+        <th className="border border-[var(--color-line)] bg-[var(--color-panel)] p-3 text-[var(--color-fg)]">What it controls</th>
+        <th className="border border-[var(--color-line)] bg-[var(--color-panel)] p-3 text-[var(--color-fg)]">Short YAML example</th>
+      </tr>
+    </thead>
+    <tbody className="align-top text-[var(--color-fg-dim)]">
+      <tr>
+        <td className="border border-[var(--color-line)] p-3 font-mono text-[var(--color-nv-bright)]">general</td>
+        <td className="border border-[var(--color-line)] p-3">Runtime behavior such as logging, telemetry, API frontend settings, async job database settings, and CORS.</td>
+        <td className="border border-[var(--color-line)] p-3">
+          <pre className="rounded-md bg-[var(--color-code-bg)] p-3 text-xs text-[var(--color-code-fg)]"><code>{`general:
+  use_uvloop: true
+  telemetry:
+    logging:
+      console:
+        _type: console
+        level: INFO
+  front_end:
+    _type: aiq_api
+    db_url: \${NAT_JOB_STORE_DB_URL:-sqlite+aiosqlite:///./jobs.db}`}</code></pre>
+        </td>
+      </tr>
+      <tr>
+        <td className="border border-[var(--color-line)] p-3 font-mono text-[var(--color-nv-bright)]">llms</td>
+        <td className="border border-[var(--color-line)] p-3">Named model definitions used by agents, including provider type, model name, endpoint URL, token limits, retries, and sampling settings.</td>
+        <td className="border border-[var(--color-line)] p-3">
+          <pre className="rounded-md bg-[var(--color-code-bg)] p-3 text-xs text-[var(--color-code-fg)]"><code>{`llms:
+  nemotron_nano_llm:
+    _type: nim
+    model_name: nvidia/nemotron-3-nano-30b-a3b
+    base_url: "https://integrate.api.nvidia.com/v1"
+    temperature: 0.1
+    max_tokens: 16384
+    num_retries: 5`}</code></pre>
+        </td>
+      </tr>
+      <tr>
+        <td className="border border-[var(--color-line)] p-3 font-mono text-[var(--color-nv-bright)]">functions</td>
+        <td className="border border-[var(--color-line)] p-3">Tools, data sources, and agent definitions. This is where web search, Knowledge Layer retrieval, and the UI data-source registry are wired.</td>
+        <td className="border border-[var(--color-line)] p-3">
+          <pre className="rounded-md bg-[var(--color-code-bg)] p-3 text-xs text-[var(--color-code-fg)]"><code>{`functions:
+  web_search_tool:
+    _type: tavily_web_search
+    max_results: 5
+
+  knowledge_search:
+    _type: knowledge_retrieval
+    backend: llamaindex
+    collection_name: \${COLLECTION_NAME:-test_collection}
+    top_k: 5`}</code></pre>
+        </td>
+      </tr>
+      <tr>
+        <td className="border border-[var(--color-line)] p-3 font-mono text-[var(--color-nv-bright)]">agent blocks</td>
+        <td className="border border-[var(--color-line)] p-3">Agent-specific wiring, including which LLM each agent uses, which tools it can call, and limits such as clarification turns or research iterations.</td>
+        <td className="border border-[var(--color-line)] p-3">
+          <pre className="rounded-md bg-[var(--color-code-bg)] p-3 text-xs text-[var(--color-code-fg)]"><code>{`functions:
+  intent_classifier:
+    _type: intent_classifier
+    llm: nemotron_llm_intent
+
+  shallow_research_agent:
+    _type: shallow_research_agent
+    llm: nemotron_nano_llm
+    tools:
+      - web_search_tool
+      - knowledge_search
+    max_tool_iterations: 4`}</code></pre>
+        </td>
+      </tr>
+      <tr>
+        <td className="border border-[var(--color-line)] p-3 font-mono text-[var(--color-nv-bright)]">workflow</td>
+        <td className="border border-[var(--color-line)] p-3">The top-level orchestrator configuration, including escalation, clarification, async deep research, and checkpoint storage.</td>
+        <td className="border border-[var(--color-line)] p-3">
+          <pre className="rounded-md bg-[var(--color-code-bg)] p-3 text-xs text-[var(--color-code-fg)]"><code>{`workflow:
+  _type: chat_deepresearcher_agent
+  enable_escalation: true
+  enable_clarifier: true
+  use_async_deep_research: true
+  checkpoint_db: \${AIQ_CHECKPOINT_DB:-./checkpoints.db}`}</code></pre>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+
+The Helm chart tells the backend which config file to load, but the config file itself is not stored as a standalone file in the chart archive. 
+
+`CONFIG_FILE` is resolved inside the running backend container. A value such as `configs/config_web_default_llamaindex.yml` points to a file packaged in the backend image, not to GitHub and not to your local laptop filesystem.
+
+The source repository publishes the packaged config examples under [configs/](https://github.com/NVIDIA-AI-Blueprints/aiq/tree/develop/configs), which is useful for reading and comparing the content of files already packaged in the backend image.
+
+
 
 Start by inspecting the backend environment values from the chart defaults. The backend loads its AI-Q workflow configuration from the `CONFIG_FILE` environment variable:
 
@@ -111,16 +214,12 @@ aiq:
         CONFIG_FILE: configs/config_web_default_llamaindex.yml
 ```
 
-The Helm chart tells the backend which config file to load, but the config file itself is not stored as a standalone file in the chart archive. `CONFIG_FILE` is resolved inside the running backend container. A value such as `configs/config_web_default_llamaindex.yml` points to a file packaged in the backend image, not to GitHub and not to your local laptop filesystem.
 
-The source repository publishes the packaged config examples under [`configs/`](https://github.com/NVIDIA-AI-Blueprints/aiq/tree/develop/configs), which is useful for reading and comparing the content of files such as `config_web_default_llamaindex.yml`.
-
-To use a local custom config, you must first mount that file into the backend pod, then set `CONFIG_FILE` to the mounted path. Part IV shows that pattern with a Kubernetes ConfigMap and Helm values.
-
+To use a local custom config, you must first mount that file into the backend pod, then set `CONFIG_FILE` to the mounted path. `Part IV` shows that pattern with a Kubernetes ConfigMap and Helm values. 
 When you adapt the lab later you will change the default `CONFIG_FILE` to integrate the Foundational RAG as a data source.
 
 
-## 6. Install AI-Q
+## 6. Install AI-Q Helm Chart
 
 Install the release with the provided values file:
 
@@ -138,17 +237,9 @@ kubectl get deploy aiq-backend -n ns-aiq \
   -o jsonpath='{.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="CONFIG_FILE")].value}{"\n"}'
 ```
 
-That config file is the AI-Q workflow definition for the backend. The main sections to understand are:
-
-- `general`: runtime behavior such as logging, telemetry, async job database settings, and CORS.
-- `llms`: hosted model definitions, including model names, NVIDIA API base URLs, retry settings, token limits, and any API key references such as `${NVIDIA_API_KEY}`.
-- `functions`: tool and data-source configuration, including web search, knowledge retrieval, and the data-source registry shown in the UI.
-- Agent blocks such as `intent_classifier`, `clarifier_agent`, `shallow_research_agent`, and `deep_research_agent`: which LLM each agent uses, which tools it inherits or excludes, and agent-specific limits such as tool iterations.
-- `workflow`: the top-level chat researcher workflow, including whether escalation, clarification, async deep research, and checkpoint storage are enabled.
-
-For this lab, the most relevant values are the hosted NIM `base_url` and `model_name` entries, the `${NVIDIA_API_KEY}` secret reference, the Tavily-backed web search functions, the `knowledge_search` data source, and the workflow toggles that later allow FRAG integration.
 
 ## 7. Troubleshoot
+
 If the install fails, start with events and pod logs:
 
 ```bash
@@ -158,3 +249,11 @@ kubectl get events -n ns-aiq --sort-by='.lastTimestamp'
 ```bash
 kubectl get pods -n ns-aiq
 ```
+
+## 8. What just happened
+
+- You created a namespace and the required Kubernetes secrets for AI-Q.
+- You pulled the AI-Q Helm chart from NGC.
+- You inspected the lab values file and the chart defaults, including the packaged `CONFIG_FILE` setting.
+- You installed AI-Q with Helm using the launchable-specific values.
+- You confirmed the backend deployment received the expected config file reference.

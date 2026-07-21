@@ -29,7 +29,7 @@ This lab config changes a few values that are easy to verify:
 
 The practical impact is that AI-Q starts in a more document-focused posture: the Knowledge Base is enabled by default, Web Search is not selected by default, RAG retrieval returns fewer chunks, and shallow research has a smaller iteration budget.
 
-## 2. Inspect the mount values file
+## 2. Inspect values file with VolumeMount
 
 The Helm override file does not contain the whole config. It only tells the backend pod where to mount the ConfigMap and what `CONFIG_FILE` path to use:
 
@@ -118,6 +118,8 @@ kubectl get deploy aiq-backend -n ns-aiq -o yaml | grep -nE "CONFIG_FILE|aiq-cus
 
 Open the AI-Q UI from the Brev endpoint for port `3001` with the `/aiq` path.
 
+<AppLaunchButton label="Open AI-Q UI" path="/aiq" port={3001} />
+
 Open **Data Sources** and notice the changed defaults: Web Search should not be enabled by default, while file-backed Knowledge Base behavior is configured through the FRAG collection.
 
 Send a document-grounded prompt after uploading a file through the **Files** tab:
@@ -142,6 +144,8 @@ Useful keywords to look for:
 - `shallow_research_agent`, showing the shallow route was selected.
 - `knowledge`, `rag`, `retriev`, or `collection`, showing the Knowledge Base path was used.
 
+## 7. Troubleshoot
+
 If the pod does not start, inspect the backend logs without filtering:
 
 ```bash
@@ -149,3 +153,11 @@ kubectl logs -n ns-aiq deploy/aiq-backend --since=10m
 ```
 
 Most startup failures in this section are caused by YAML indentation, a missing ConfigMap, or a `CONFIG_FILE` path that does not match the mounted file path.
+
+## 8. What just happened
+
+- You inspected a local AI-Q config file that builds on the FRAG workflow.
+- You created a ConfigMap from that local file.
+- You layered Helm values so AI-Q kept the FRAG environment variables while overriding only `CONFIG_FILE`.
+- You verified that the backend deployment points to the mounted config path.
+- You tested the behavior change from the AI-Q UI and logs.

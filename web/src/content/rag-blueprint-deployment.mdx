@@ -19,8 +19,10 @@ Do not paste real keys into shared logs or committed files. The commands below p
 Create the namespace if it does not already exist:
 
 ```bash
-kubectl create namespace rag
+kubectl create namespace rag --dry-run=client -o yaml | kubectl apply -f -
 ```
+
+This command is rerunnable. If you repeat the lab, Kubernetes keeps the existing namespace and continues.
 
 ## 2. Inspect the chart defaults
 
@@ -68,7 +70,7 @@ helm upgrade --install rag -n rag \
 
 ## 5. Validate the deployment
 
-Check the pods:
+Check that all pods are running:
 
 ```bash
 kubectl get pods -n rag
@@ -84,7 +86,7 @@ rag-minio-...         1/1 Running
 rag-redis-...         1/1 Running
 ```
 
-Check the services:
+Verify the k8s services:
 
 ```bash
 kubectl get svc -n rag
@@ -95,92 +97,12 @@ The services AI-Q will use later are:
 - `rag-server` on port `8081`
 - `ingestor-server` on port `8082`
 - `rag-frontend` on port `3000`, exposed through Envoy at `/rag`
-- Envoy browser-facing `/api/...` paths, which forward selected RAG UI requests to the in-cluster RAG server and ingestor APIs
+
 
 Verify the Envoy route:
 
 ```bash
 kubectl get httproute -n rag rag-frontend
-```
-
-Open the same Brev launchable endpoint you use for AI-Q on port `3001`, then add `/rag` to the URL path. The tutorial UI remains on port `3000`; Envoy serves application frontends from port `3001`. The `/rag` path is an entry point to the RAG UI and redirects to the RAG frontend root on the same Envoy port.
-
-The RAG frontend is a Vite app using root-level routes and assets. The lab Envoy route handles `/`, `/settings`, `/collections`, `/assets/...`, and the RAG-specific `/api/...` calls needed by the browser. Those specific `/api/...` matches are required because AI-Q also uses root-level `/api` paths on the same Envoy host.
-
-Check rollout status for the main services:
-
-```bash
-kubectl rollout status deployment/rag-server -n rag --timeout=5m
-kubectl rollout status deployment/ingestor-server -n rag --timeout=5m
-kubectl rollout status deployment/rag-frontend -n rag --timeout=5m
-```
-
-## 6. Troubleshoot
-
-If a pod is not ready, inspect events and logs:
-
-```bash
-kubectl get events -n rag --sort-by='.lastTimestamp'
-```
-
-For `Pending` pods, describe the pod and look at the scheduler message:
-
-```bash
-kubectl describe pod -n rag <pending-pod-name>
-```
-
-If you see `Insufficient cpu` or `Insufficient memory` for `rag-nv-ingest`, the chart is still using resource requests that are too large for the launchable. Confirm the rendered values:
-
-```bash
-helm get values rag -n rag --all | grep -nE "nv-ingest:|resources:|MAX_INGEST_PROCESS_WORKERS|NV_INGEST_MAX_UTIL|PDF_SPLIT_PAGE_COUNT" -A12 -B2
-```
-
-If `rag-nv-ingest` enters `CrashLoopBackOff` with an `ImageCaptionExtractionSchema` error such as `endpoint_url Input should be a valid string`, or a `TextEmbeddingSchema` error such as `embedding_nim_endpoint Input should be a valid string`, an NV-Ingest endpoint was rendered as `None`. Confirm the deployed environment:
-
-```bash
-kubectl get deploy rag-nv-ingest -n rag -o yaml | grep -nE "EMBEDDING_NIM_ENDPOINT|EMBEDDING_NIM_MODEL_NAME|VLM_CAPTION_ENDPOINT|APP_NVINGEST_CAPTIONENDPOINTURL|APP_VLM_SERVERURL" -A2 -B2
-```
-
-The lab values should set `EMBEDDING_NIM_ENDPOINT` to the base URL `https://integrate.api.nvidia.com/v1` and `VLM_CAPTION_ENDPOINT` to `https://integrate.api.nvidia.com/v1/chat/completions`.
-
-If ingestion fails with a URL like `https://integrate.api.nvidia.com/v1/embeddings/embeddings`, the endpoint was configured with the operation path included. Use the base `/v1` URL instead.
-
-If ingestion fails with `410 Client Error: Gone for url: https://integrate.api.nvidia.com/v1/embeddings`, the endpoint is reachable but the hosted service rejected the embedding request. First confirm that the deployed pod has the RAG `v2.5.0` model name:
-
-```bash
-kubectl get deploy rag-nv-ingest -n rag -o jsonpath='{range .spec.template.spec.containers[*].env[*]}{.name}={.value}{"\n"}{end}' | \
-  grep -E "EMBEDDING_NIM_MODEL_NAME|EMBEDDING_NIM_ENDPOINT"
-```
-
-Expected values:
-
-```text
-EMBEDDING_NIM_ENDPOINT=https://integrate.api.nvidia.com/v1
-EMBEDDING_NIM_MODEL_NAME=nvidia/llama-nemotron-embed-1b-v2
-```
-
-Also check the RAG server and ingestor model settings:
-
-```bash
-kubectl get deploy -n rag rag-server ingestor-server -o jsonpath='{range .items[*]}{"\n"}{.metadata.name}{"\n"}{range .spec.template.spec.containers[*].env[*]}{.name}={.value}{"\n"}{end}{end}' | \
-  grep -E "rag-server|ingestor-server|APP_EMBEDDINGS_MODELNAME|APP_RANKING_MODELNAME|APP_EMBEDDINGS_SERVERURL|APP_RANKING_SERVERURL"
-```
-
-Then reapply the lab values:
-
-```bash
-helm upgrade --install rag -n rag \
-  https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.5.0.tgz \
-  --username '$oauthtoken' \
-  --password "$NGC_API_KEY" \
-  --set imagePullSecret.password="$NGC_API_KEY" \
-  --set ngcApiSecret.password="$NGC_API_KEY" \
-  -f manifests/rag-values.yaml \
-  --wait --timeout 20m
-```
-
-```bash
-kubectl logs -n rag deploy/rag-server --since=10m
 ```
 
 You can also run direct health checks from inside the cluster. 
@@ -203,4 +125,58 @@ kubectl run rag-ingestor-healthcheck -n rag --rm -i --restart=Never \
 
 Expected result: each endpoint returns HTTP `200` or a successful health response.
 
+
+## 6. Access the RAG web UI
+
+Envoy serves application frontends from port `3001`. The `/rag` path is an entry point to the RAG UI and redirects to the RAG frontend root on the same Envoy port.
+
+<AppLaunchButton label="Open RAG UI" path="/rag" port={3001} />
+
+If your browser blocks pop-ups or your Brev environment exposes ports as separate secure links, open the Brev launchable endpoint for port `3001`, then add `/rag` to the URL path.
+
+Use the chatbot to ask a question, for example `What is the NVIDIA RAG Blueprint?`, and validate that you get a response.
+
+## 7. Troubleshoot
+
+If a pod is not ready, inspect events and logs:
+
+```bash
+kubectl get events -n rag --sort-by='.lastTimestamp'
+```
+
+For `Pending` pods, describe the pod and look at the scheduler message:
+
+```bash
+kubectl describe pod -n rag <pending-pod-name>
+```
+
+If you see `Insufficient cpu` or `Insufficient memory` for `rag-nv-ingest`, the chart might be using resource requests that are too large for the launchable. Confirm the rendered values:
+
+```bash
+helm get values rag -n rag --all | grep -nE "nv-ingest:|resources:|MAX_INGEST_PROCESS_WORKERS|NV_INGEST_MAX_UTIL|PDF_SPLIT_PAGE_COUNT" -A12 -B2
+```
+
+To trace requests, you can look at the rag-server logs
+
+```bash
+kubectl logs -n rag deploy/rag-server --since=10m
+```
+
+To debug issues with ingestion, you can look at the rag-nv-ingest logs
+
+```bash
+kubectl logs -n rag deploy/rag-nv-ingest --since=10m
+```
+
+
+
 Source reference: [Deploy NVIDIA RAG Blueprint on Kubernetes with Helm](https://docs.nvidia.com/rag/2.5.0/deploy-helm.html).
+
+## 8. What just happened
+
+- You created the `rag` namespace.
+- You inspected the upstream RAG Helm chart defaults and the lab override values.
+- You installed the RAG Blueprint `v2.5.0` chart with NVIDIA hosted endpoints and CPU-oriented vector database settings.
+- You validated the main RAG pods and services.
+- You opened the RAG frontend through Envoy on `/rag`.
+- You learned how to check RAG health from inside the cluster without using port-forward.

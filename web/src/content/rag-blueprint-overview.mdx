@@ -4,15 +4,34 @@ In this lab, RAG becomes the knowledge layer that AI-Q can call when a research 
 
 ## What the RAG Blueprint provides
 
-The blueprint is designed as a configurable starting point for enterprise RAG systems. It includes:
+The blueprint is designed as a configurable starting point for enterprise RAG systems. Think of it as a set of services that separate the user experience, ingestion pipeline, retrieval path, model calls, and deployment assets.
 
-- A reference web UI for uploading documents, managing sessions, and asking grounded questions.
-- RAG server APIs for question answering, retrieval, and generation.
-- An ingestor service for document processing, chunking, metadata extraction, and vector database writes.
-- Support for NVIDIA hosted endpoints or self-hosted NIM services for generation, embeddings, reranking, and extraction.
-- Vector database integration for storing and retrieving document chunks.
-- Optional reranking, citations, guardrails, observability, multimodal extraction, and multi-turn conversation support.
-- Deployment options for Docker, Helm, Kubernetes, and library-mode experimentation.
+<div className="my-6 grid gap-3 md:grid-cols-2">
+  <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-4">
+    <div className="text-sm font-semibold text-[var(--color-nv-bright)]">User experience</div>
+    <div className="mt-2 text-sm text-[var(--color-fg-dim)]">Reference web UI for uploading documents, managing sessions, configuring retrieval, and asking grounded questions.</div>
+  </div>
+  <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-4">
+    <div className="text-sm font-semibold text-[var(--color-nv-bright)]">RAG APIs</div>
+    <div className="mt-2 text-sm text-[var(--color-fg-dim)]">Server APIs for question answering, retrieval, generation, health checks, and application configuration.</div>
+  </div>
+  <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-4">
+    <div className="text-sm font-semibold text-[var(--color-nv-bright)]">Ingestion pipeline</div>
+    <div className="mt-2 text-sm text-[var(--color-fg-dim)]">Document processing, chunking, metadata extraction, ingestion status, and writes into the vector database.</div>
+  </div>
+  <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-4">
+    <div className="text-sm font-semibold text-[var(--color-nv-bright)]">Model services</div>
+    <div className="mt-2 text-sm text-[var(--color-fg-dim)]">Generation, embeddings, reranking, and extraction through NVIDIA hosted endpoints or self-hosted NIM services.</div>
+  </div>
+  <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-4">
+    <div className="text-sm font-semibold text-[var(--color-nv-bright)]">Retrieval storage</div>
+    <div className="mt-2 text-sm text-[var(--color-fg-dim)]">Vector database integration for storing chunks, retrieving relevant passages, and supporting collection-level organization.</div>
+  </div>
+  <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-4">
+    <div className="text-sm font-semibold text-[var(--color-nv-bright)]">Production shape</div>
+    <div className="mt-2 text-sm text-[var(--color-fg-dim)]">Helm and Kubernetes deployment assets, with room for reranking, citations, guardrails, observability, multimodal extraction, and multi-turn workflows.</div>
+  </div>
+</div>
 
 ## Why RAG matters
 
@@ -20,15 +39,17 @@ RAG helps solve a common enterprise problem: valuable knowledge lives in documen
 
 The key benefits are:
 
-- Grounding: responses can cite retrieved document chunks.
-- Freshness: users can upload or update documents without retraining a model.
-- Governance: retrieval can be scoped to approved data sources and collections.
-- Decomposition: ingestion, retrieval, reranking, and generation can be tuned independently.
-- Production fit: APIs, services, and deployment assets are separated so the stack can be operated like normal Kubernetes software.
+- `Grounding`: responses can cite retrieved document chunks.
+- `Freshness`: users can upload or update documents without retraining a model.
+- `Governance`: retrieval can be scoped to approved data sources and collections.
+- `Decomposition`: ingestion, retrieval, reranking, and generation can be tuned independently.
+- `Production fit`: APIs, services, and deployment assets are separated so the stack can be operated like normal Kubernetes software.
 
 ## Why connect RAG to AI-Q
 
 AI-Q provides the agentic research workflow: intent classification, shallow research, deep research, clarification, and synthesis. RAG provides a trusted knowledge substrate that AI-Q can use when the answer should come from user-provided or enterprise-specific documents.
+
+AI-Q exposes this through the **Knowledge Layer**, a pluggable abstraction for document ingestion and retrieval. The Knowledge Layer lets AI-Q agents call a common `knowledge_retrieval` tool while the backend can change underneath. That backend-agnostic design is what lets this lab start with the default local path and then move to the RAG Blueprint without changing the high-level research workflow.
 
 Connecting the two gives the lab a more realistic enterprise pattern:
 
@@ -37,10 +58,15 @@ Connecting the two gives the lab a more realistic enterprise pattern:
 - The AI-Q UI becomes the research interface, while RAG acts as a specialized knowledge service behind the scenes.
 - Later prompts can combine general web research with document-grounded evidence from FRAG.
 
-## Lab approach
+In the previous AI-Q deployment, the default configuration used the `llamaindex` Knowledge Layer backend. That is useful for a simple, local, image-packaged document store. In the FRAG path, AI-Q switches to the `foundational_rag` backend, which calls the deployed RAG services over HTTP.
 
-The upstream RAG Blueprint supports self-hosted model services, which can require GPU resources and large model caches. This launchable keeps the lab lightweight by using NVIDIA hosted endpoints for model inference and a CPU vector database configuration for retrieval storage.
+| Backend | How it works | Vector store | Best fit | Tradeoff |
+|---|---|---|---|---|
+| `llamaindex` | Runs as a local library inside the AI-Q backend process. | ChromaDB | Development, quick demos, single-user experimentation, simple local document flows. | Easier to start, but less production-shaped and less separated from the AI-Q backend lifecycle. |
+| `foundational_rag` | Calls the NVIDIA RAG Blueprint services through HTTP. | Remote Milvus in the RAG deployment | Production-like Kubernetes labs, multi-service deployments, shared ingestion/retrieval services, and larger enterprise RAG patterns. | Requires extra infrastructure, but gives a cleaner service boundary and a scalable RAG control plane. |
 
-That means the Kubernetes cluster runs the RAG application services, ingestor, frontend, storage, and vector database, while generation, embeddings, reranking, and related model calls go to NVIDIA hosted endpoints.
+The practical rule of thumb: use `llamaindex` when you want the smallest local path, and use `foundational_rag` when the retrieval service should be deployed, scaled, validated, and operated independently from AI-Q.
+
+Source reference: [AI-Q Knowledge Layer](https://docs.nvidia.com/aiq-blueprint/2.0.0/customization/knowledge-layer.html).
 
 Source reference: [NVIDIA RAG Blueprint repository](https://github.com/NVIDIA-AI-Blueprints/rag/tree/develop).

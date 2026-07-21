@@ -1,0 +1,64 @@
+# Self-hosted Nemotron NIM for Part IV of the AI-Q lab.
+#
+# This manifest expects the NIM Operator CRDs, NVIDIA GPU DRA driver, and the
+# NGC pull/auth secrets to already exist. It uses DRA auto-creation so the
+# NIMService creates its ResourceClaimTemplate from spec.draResources.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nim-service
+---
+apiVersion: apps.nvidia.com/v1alpha1
+kind: NIMCache
+metadata:
+  name: nemotron-3-nano-30b-a3b
+  namespace: nim-service
+spec:
+  source:
+    ngc:
+      modelPuller: nvcr.io/nim/nvidia/nemotron-3-nano-30b-a3b:latest
+      pullSecret: ngc-secret
+      authSecret: ngc-api-secret
+      model:
+        engine: tensorrt_llm
+        tensorParallelism: "1"
+  storage:
+    pvc:
+      create: true
+      storageClass: ""
+      size: "120Gi"
+      volumeAccessMode: ReadWriteOnce
+---
+apiVersion: apps.nvidia.com/v1alpha1
+kind: NIMService
+metadata:
+  name: nemotron-3-nano
+  namespace: nim-service
+spec:
+  image:
+    repository: nvcr.io/nim/nvidia/nemotron-3-nano-30b-a3b
+    tag: latest
+    pullPolicy: IfNotPresent
+    pullSecrets:
+      - ngc-secret
+  authSecret: ngc-api-secret
+  storage:
+    nimCache:
+      name: nemotron-3-nano-30b-a3b
+      profile: ""
+  replicas: 1
+  draResources:
+    - claimCreationSpec:
+        devices:
+          - name: gpu
+            deviceClassName: gpu.nvidia.com
+            driverName: gpu.nvidia.com
+            capacitySelectors:
+              - key: memory
+                op: GreaterThanOrEqual
+                value: 40Gi
+  expose:
+    service:
+      type: ClusterIP
+      port: 8000

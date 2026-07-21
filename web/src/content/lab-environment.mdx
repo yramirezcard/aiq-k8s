@@ -12,7 +12,7 @@ The Brev launchable prepared a small Kubernetes environment for the AI-Q tutoria
 Two design choices shape this launchable:
 
 - The AI-Q deployment is configuration-driven, so the Kubernetes install can change models, tools, secrets, and data-source settings through Helm values.
-- No GPUs are required on the launchable VM
+- No GPUs are required on the launchable VM.
 - The Kubernetes cluster runs the AI-Q application services, while model inference calls leave the cluster and go to NVIDIA hosted endpoints, which lets this lab demonstrate a production-style Kubernetes deployment pattern without requiring local GPU capacity.
 
 ## Verify the cluster

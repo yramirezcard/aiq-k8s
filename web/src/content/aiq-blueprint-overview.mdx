@@ -32,28 +32,15 @@ AI-Q routes work into three broad paths:
 
 ## What you'll learn
 
-This lab shows how to deploy the AI-Q Blueprint in a Kubernetes setup using Helm. The launchable prepares a k3s cluster and installs the required tooling, then you perform the AI-Q installation step by step from the embedded terminal.
+This lab shows how to deploy AI-Q in a Kubernetes setup, validate its agent routes, connect it to the NVIDIA RAG Blueprint as a Knowledge Layer, and customize how AI-Q loads configuration. The launchable prepares a k3s cluster and the required platform tooling; you use the embedded terminal to perform the application deployments and validation.
 
 Learning objectives:
 
-- Understand the architecture of the AI-Q Blueprint and the role of each major component.
-- Use Helm charts as the packaging model for production-like Kubernetes deployments.
-- Apply configuration management patterns that enable different data sources and research workflows.
+- Understand the AI-Q architecture, including intent classification, meta responses, shallow research, deep research, clarification, and escalation.
+- Deploy AI-Q and RAG with Helm in a production-like Kubernetes workflow.
 - Use NVIDIA hosted NIM endpoints to build demos without requiring local GPU resources.
-- Validate that the deployed AI-Q UI and backend are ready for interactive testing.
-
-Kubernetes is the standard platform for production-like deployment of these workloads because it gives you repeatable packaging, service discovery, rollout controls, secret management, and operational hooks for monitoring and scaling.
-
-## Model endpoints
-
-The default AI-Q profiles can use NVIDIA hosted model endpoints through the NVIDIA API Catalog. In that mode inference runs on NVIDIA-hosted infrastructure, so this lab does not require local GPUs.
-
-The AI-Q defaults and optional knowledge-layer paths use these hosted endpoints:
-
-- `nvidia/nemotron-3-nano-30b-a3b` for agents, research workflows, and intent classification;
-- `openai/gpt-oss-120b` for deep research orchestration and planning;
-- `nvidia/nemotron-mini-4b-instruct` for optional document summary tasks;
-- `nvidia/llama-nemotron-embed-vl-1b-v2` for text embedding in LlamaIndex knowledge-layer workflows; and
-- `nvidia/nemotron-nano-12b-v2-vl` for optional vision-language extraction tasks.
-
-Search and retrieval integrations, such as Tavily and the later Foundational RAG section, are configured separately from these model endpoints.
+- Connect RAG to AI-Q through the Knowledge Layer so uploaded documents can become part of the agent workflow.
+- Compare the default LlamaIndex knowledge path with the Foundational RAG service-backed path.
+- Customize AI-Q by mounting a local configuration file and changing data-source, retrieval, and model settings.
+- Understand the self-hosted model pattern with NIM Operator, GPU DRA, and a local NIM service.
+- Validate deployments through Kubernetes resources, temporary in-cluster test pods, UI behavior, and backend logs.

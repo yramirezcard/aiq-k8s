@@ -1,0 +1,24 @@
+You have now walked through the full AI-Q on Kubernetes lab path: cluster validation, Helm deployment, UI access, RAG deployment, FRAG integration, custom configuration, and an optional self-hosted model path.
+
+## What you built
+
+| Stage | What you deployed or changed | Why it matters |
+|---|---|---|
+| Lab environment | A single-node k3s cluster with Helm, Envoy Gateway, and the tutorial UI | Gives you a repeatable Kubernetes workspace for hands-on AI-Q and RAG deployment. |
+| AI-Q Helm deployment | AI-Q backend, frontend, PostgreSQL, secrets, image pull configuration, and Helm values | Shows how AI-Q can be packaged and operated as Kubernetes services. |
+| AI-Q route testing | Meta response, shallow research, deep research, and escalation or clarification prompts | Makes the architecture observable from the UI and backend logs. |
+| RAG Helm deployment | RAG server, ingestor, frontend, storage, vector database, and CPU-oriented lab values | Adds a production-shaped retrieval service without requiring local GPU inference. |
+| FRAG integration | AI-Q upgraded with `config_web_frag.yml`, `RAG_SERVER_URL`, `RAG_INGEST_URL`, and `COLLECTION_NAME` | Connects AI-Q agents to document upload and retrieval through the RAG Blueprint. |
+| Custom configuration | A local AI-Q config mounted through a ConfigMap and selected with `CONFIG_FILE` | Demonstrates the pattern for changing models, tools, data sources, and workflow settings safely. |
+| Advanced self-hosted model path | A DRA-backed NIMService and local-NIM AI-Q config | Shows how AI-Q can move from hosted model endpoints to in-cluster inference when GPU infrastructure is available. |
+
+
+## Things to research next
+
+- Kubernetes production hardening for AI services: resource requests, limits, probes, autoscaling, pod disruption budgets, and rollout strategy.
+- Secret management beyond lab defaults, such as external secret stores and key rotation.
+- Observability for AI-Q and RAG: structured logs, traces, metrics, request IDs, and dashboarding.
+- Ingress and Gateway API design for multiple frontend apps that share one public hostname.
+- RAG quality tuning: chunking, metadata schema, reranking, retrieval `top_k`, citations, and evaluation.
+- Data governance: collection ownership, document lifecycle, retention, access control, and auditability.
+- Self-hosted NIM operations: GPU sizing, DRA policy, model caching, upgrade planning, and inference cost/performance tradeoffs.

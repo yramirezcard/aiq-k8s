@@ -1,17 +1,17 @@
-# AIQ on Kubernetes
+# AI-Q on Kubernetes
 
 This repository is a Brev Launchable for a hands-on tutorial that deploys the NVIDIA AI-Q Blueprint on Kubernetes.
 
 The launchable is being built in layers:
 
 1. Provision a single-node Kubernetes cluster on the Brev VM with Ansible and k3s.
-2. Add a tutorial UI with chapter navigation and embedded terminals, following the `openshell-on-k8s` pattern.
-3. Teach the user how to deploy AI-Q with the Helm chart from `NVIDIA-AI-Blueprints/aiq/deploy/helm/deployment-k8s`.
-4. Turn the setup into a guided lab that teaches deployment, verification, access, and troubleshooting.
+2. Add a tutorial UI with chapter navigation and embedded terminals.
+3. Teach the user how to deploy AI-Q and RAG with Helm.
+4. Turn the setup into a guided lab that teaches deployment, verification, access, integration, customization, and troubleshooting.
 
 ## Current State
 
-This first scaffold sets up the Brev lifecycle scripts and Ansible structure for a single-node k3s cluster. AI-Q is not installed by Ansible; the tutorial content will walk the user through those Kubernetes and Helm commands.
+The launchable sets up the Brev lifecycle scripts, Ansible structure, single-node k3s cluster, Helm, Envoy Gateway, and optional tutorial UI. AI-Q and RAG are intentionally not installed by Ansible; the tutorial content walks the user through those Kubernetes and Helm commands.
 
 ```bash
 cp .env.example .env
@@ -34,7 +34,7 @@ Set `ENABLE_WORKSHOP=true` to build and run the Next.js tutorial UI with the emb
 ENABLE_WORKSHOP=true ./scripts/setup.sh
 ```
 
-The site runs on port `3000` by default. The first hands-on lab page is `2.1 Verify the Cluster`, which includes a runnable `kubectl get nodes` command block and a live shell connected to the VM.
+The site runs on port `3000` by default. Hands-on pages include runnable command blocks and a live shell connected to the VM.
 
 For local UI development, run the browser-safe local script and open `http://localhost:3000`:
 
@@ -51,10 +51,11 @@ Use `brev/setup-wrapper.sh` as the Brev Launchable setup script. Brev clones thi
 
 ## AI-Q Tutorial Path
 
-The tutorial will deploy AI-Q from the official source chart path:
+The tutorial deploys AI-Q and RAG from the official NVIDIA Blueprint Helm charts:
 
 ```text
 NVIDIA-AI-Blueprints/aiq/deploy/helm/deployment-k8s
+NVIDIA-AI-Blueprints/rag/deploy/helm
 ```
 
 Those deployment commands belong in the hands-on lesson content, not in the launchable setup scripts.

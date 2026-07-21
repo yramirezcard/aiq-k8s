@@ -20,10 +20,19 @@ The default deployment includes these main pods:
 - `aiq-frontend`: serves the web UI that you use to submit prompts and inspect responses.
 - `aiq-postgres`: stores backend state used by the AI-Q services, including job and checkpoint data configured by the deployment.
 
-Check services:
+Verify the k8s services:
 
 ```bash
 kubectl get svc -n ns-aiq
+```
+
+Verify the Gateway and HttpRoute used to expose the frontend service:
+
+```bash
+kubectl get gateway -n aiq-gateway
+```
+```bash
+kubectl get httproute -n ns-aiq aiq-frontend
 ```
 
 ## 2. Test the backend health check
@@ -43,30 +52,21 @@ Expected result: the command exits successfully and prints the backend health re
 
 The tutorial UI itself runs on port `3000`, so AI-Q needs a different external entry point. This launchable exposes AI-Q through Envoy Gateway on host port `3001` at the `/aiq` path.
 
-That design keeps the tutorial UI and the AI-Q UI separate while still making both reachable through Brev endpoints. Inside Kubernetes, the frontend remains a normal service. Envoy owns the external HTTP route and forwards requests matching `/aiq` to the `aiq-frontend` service. The setup script binds Envoy to a real host port so the Brev endpoint can reach it reliably.
+<AppLaunchButton label="Open AI-Q UI" path="/aiq" port={3001} />
 
-Verify the service and route:
+The button opens the current lab hostname on port `3001` with the `/aiq` path. If your browser blocks pop-ups or your Brev environment exposes ports as separate secure links, open the Brev launchable endpoint for port `3001`, then add `/aiq` to the URL path.
 
-```bash
-kubectl get svc -n ns-aiq aiq-frontend
-```
+## Route test overview
 
-```bash
-kubectl get gateway -n aiq-gateway
-```
-```bash
-kubectl get httproute -n ns-aiq aiq-frontend
-```
+Use the next four prompts to watch AI-Q choose different paths through the architecture:
 
-Open the Brev launchable endpoint for port `3001`, then add `/aiq` to the URL path.
+| Route | Prompt shape | Expected behavior | Useful log keywords |
+|---|---|---|---|
+| Meta response | Ask what AI-Q can do | Direct capability-style answer without research tools | `intent_classifier`, `meta`, `workflow` |
+| Shallow research | Ask for a specific current fact or short summary | Fast answer with web search/tool activity and citations | `shallow_research_agent`, `web_search_tool`, `tavily`, `citation` |
+| Deep research | Ask for comparison, tradeoffs, and recommendation | Planned, multi-step research with a more report-like answer | `deep_research_agent`, `planner`, `researcher`, `writer`, `report` |
+| Escalation or clarification | Ask a broad strategic question | Routing decision may move from a lighter path to clarification or deeper research | `escalation`, `clarifier_agent`, `route`, `decision` |
 
-If the page loads but looks unstyled, the initial HTML is reaching AI-Q but static assets are not. If prompts submit but responses never appear, the WebSocket route may be missing. The AI-Q frontend is built for root-path serving, so the Envoy route also forwards root-level frontend paths such as `/_next`, `/api`, `/websocket`, and `/favicon.ico` to `aiq-frontend`.
-
-Validate that those extra route matches are present:
-
-```bash
-kubectl get httproute -n ns-aiq aiq-frontend -o yaml | grep -nE '/aiq|/_next|/api|/websocket|favicon'
-```
 
 ## 4. Test a meta-response route
 
@@ -109,3 +109,55 @@ kubectl logs -n ns-aiq deploy/aiq-backend --since=5m | grep -Ei "shallow|researc
 Look for keywords such as `shallow_research_agent`, `web_search_tool`, `tavily`, `tool`, `citation`, or `research`. Compared with the meta-response test, this log output should show tool or search activity and shallow research routing.
 
 If the response looks like a deep report or asks for clarification, try a narrower factual query. If the response has no sources, confirm `TAVILY_API_KEY` was set before the Helm install and that the `aiq-credentials` secret exists in `ns-aiq`.
+
+## 6. Test a deep research route
+
+Now test a prompt that should require planning, multiple search/retrieval passes, synthesis, and a more structured answer. A good deep research candidate asks for comparison, tradeoffs, and a recommendation rather than a single factual lookup.
+
+In the AI-Q UI, send:
+
+```text
+Compare Kubernetes deployment patterns for enterprise RAG systems, including managed Kubernetes, self-managed clusters, and hybrid deployments. Recommend one approach for a regulated financial services team and explain the tradeoffs.
+```
+
+This should route differently from shallow research because the question asks for a multi-part analysis and a recommendation. AI-Q should need to break the task down, gather evidence from multiple sources, reason across criteria, and produce a more report-like answer.
+
+Check the backend logs:
+
+```bash
+kubectl logs -n ns-aiq deploy/aiq-backend --since=10m | grep -Ei "deep|planner|researcher|writer|plan|section|citation|report|async|checkpoint|intent"
+```
+
+Look for keywords such as `deep_research_agent`, `planner`, `researcher`, `writer`, `plan`, `report`, `checkpoint`, `citation`, or `async`. Compared with the shallow route, this output should show more planning and synthesis activity, not just one or two tool calls.
+
+If the response is short and shallow, make the request more explicitly comparative. Words like `compare`, `evaluate`, `recommend`, `tradeoffs`, and `for a regulated team` help signal that the answer needs deeper research.
+
+## 7. Test an escalation route
+
+Finally, test a prompt that starts small but naturally requires deeper analysis. Escalation is useful when AI-Q begins in a lighter route and decides the request needs a stronger research path to answer well.
+
+In the AI-Q UI, send:
+
+```text
+Should our platform team standardize on one retrieval architecture for all business units, or allow teams to choose their own RAG stack? Consider cost, governance, operational complexity, and time to production.
+```
+
+This is a good escalation candidate because it is framed as a strategic decision. It is broader than a shallow fact lookup, but it is not simply asking for a generic deep report from the first word. AI-Q may classify the request, discover that a useful answer needs structured evaluation, and escalate toward deeper research or clarification.
+
+Check the backend logs:
+
+```bash
+kubectl logs -n ns-aiq deploy/aiq-backend --since=10m | grep -Ei "escalat|clarif|deep|shallow|intent|route|decision|workflow|research"
+```
+
+Look for keywords such as `escalation`, `enable_escalation`, `clarifier_agent`, `deep_research_agent`, `shallow_research_agent`, `route`, `decision`, or `intent_classifier`. The exact wording depends on the image and log level, but this test should show routing decisions and may show the workflow moving from an initial route toward a deeper one.
+
+If AI-Q asks a clarifying question, that is also a valid signal. The clarifier route can appear when the system decides the request is too broad or under-specified to answer responsibly. Answer the clarification and continue; the next turn should give you a better signal about whether AI-Q continues with shallow or deep research.
+
+## 8. What just happened
+
+- You verified that the AI-Q pods, services, Gateway, and HTTPRoute are present.
+- You tested backend health from inside the cluster without blocking the terminal with port-forwarding.
+- You opened the AI-Q UI through Envoy on `/aiq`.
+- You exercised the four important request paths: meta response, shallow research, deep research, and escalation or clarification.
+- You learned which backend log keywords help confirm how AI-Q routed each prompt.

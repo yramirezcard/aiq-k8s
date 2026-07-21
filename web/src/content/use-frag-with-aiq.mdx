@@ -55,6 +55,15 @@ kubectl get deploy aiq-backend -n ns-aiq \
   -o jsonpath='CONFIG_FILE={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="CONFIG_FILE")].value}{"\n"}RAG_SERVER_URL={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="RAG_SERVER_URL")].value}{"\n"}RAG_INGEST_URL={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="RAG_INGEST_URL")].value}{"\n"}COLLECTION_NAME={.spec.template.spec.containers[?(@.name=="backend")].env[?(@.name=="COLLECTION_NAME")].value}{"\n"}'
 ```
 
+Expected values:
+
+```text
+CONFIG_FILE=configs/config_web_frag.yml
+RAG_SERVER_URL=http://rag-server.rag.svc.cluster.local:8081/v1
+RAG_INGEST_URL=http://ingestor-server.rag.svc.cluster.local:8082
+COLLECTION_NAME=default
+```
+
 ## 4. Inspect the RAG collections
 
 AI-Q uses `RAG_INGEST_URL` for file and collection operations. When you upload a file from the AI-Q UI **Files** tab, the AI-Q backend sends that upload to the RAG ingestor service at `RAG_INGEST_URL`.
@@ -85,6 +94,17 @@ If you want AI-Q to query a different populated collection, update `COLLECTION_N
 
 Return to the AI-Q UI at the Brev endpoint for port `3001` with the `/aiq` path.
 
+<AppLaunchButton label="Open AI-Q UI" path="/aiq" port={3001} />
+
+Success in this section means these signals line up:
+
+- The AI-Q backend uses `CONFIG_FILE=configs/config_web_frag.yml`.
+- `RAG_SERVER_URL` includes `/v1` because it targets the RAG query API.
+- `RAG_INGEST_URL` does not include `/v1` because file and collection routes are served from the ingestor root.
+- `COLLECTION_NAME` matches the collection you expect AI-Q to query.
+- The RAG ingestor `/collections` response shows file metadata after upload.
+- While AI-Q is answering, the UI mentions the uploaded file or Knowledge Base source instead of only **Web Search**.
+
 Follow this sequence:
 
 1. Open **Data Sources**.
@@ -110,14 +130,6 @@ kubectl run rag-collections-after-upload -n rag --rm -i --restart=Never \
   sh -c 'curl -sS -w "\nHTTP %{http_code}\n" http://ingestor-server:8082/collections'
 ```
 
-To inspect which document-related routes this ingestor exposes:
-
-```bash
-kubectl run rag-documents-check -n rag --rm -i --restart=Never \
-  --image=curlimages/curl:8.10.1 -- \
-  sh -c 'curl -sS http://ingestor-server:8082/openapi.json | grep -o "\"/[^\"]*documents[^\"]*\"" | sort -u'
-```
-
 Use the collection metadata from `/collections` as the primary verification signal. A successful upload should increase `number_of_files`, `total_elements`, or `num_entities` for the collection that AI-Q is configured to query.
 
 Check AI-Q backend logs:
@@ -133,3 +145,11 @@ kubectl logs -n rag deploy/rag-server --since=10m | grep -Ei "generate|retriev|c
 ```
 
 If AI-Q does not appear to call RAG, re-check `CONFIG_FILE`, `RAG_SERVER_URL`, and `RAG_INGEST_URL` in the backend pod. If RAG receives the request but returns no useful context, confirm the document upload finished and that you are asking about content present in that document.
+
+## 6. What just happened
+
+- You upgraded AI-Q from the default LlamaIndex-style config to the FRAG-aware config.
+- You connected AI-Q to the RAG server for retrieval and grounded generation.
+- You connected AI-Q to the RAG ingestor for file uploads and collection operations.
+- You verified the collection that AI-Q queries.
+- You tested document-grounded answering from the AI-Q UI using the Files tab.
