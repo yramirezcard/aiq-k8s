@@ -10,30 +10,47 @@ This repository includes a local custom config:
 cat manifests/configs/config_lab_custom.yml
 ```
 
+
 The file follows the same top-level structure as the AI-Q configuration reference and builds on the FRAG configuration used in the previous section:
+
+This configuration is based on the AI-Q `release/2.1` `configs/config_web_frag.yml`. It keeps the same major sections, and changes selected values so you can see how a local config override works.
 
 - `general`: logging, telemetry, API frontend, CORS, and runtime settings.
 - `llms`: model definitions, model names, hosted endpoint URLs, retry limits, and sampling settings.
-- `functions`: data-source registry entries, tools, and agents, including web search, knowledge retrieval, intent classification, shallow research, clarification, and deep research.
+- `functions`: data-source registry entries, tools, and agents, including knowledge retrieval, intent classification, shallow research, clarification, and deep research.
 - `workflow`: the top-level AI-Q orchestrator and the agents it wires together.
 
-This lab config changes a few values that are easy to verify:
+The custom values are grouped by the part of AI-Q they affect.
 
-- `general.telemetry.logging.console.level` is set to `DEBUG`.
-- `functions.data_sources.sources.web_search.default_enabled` is set to `false`.
-- `functions.data_sources.sources.knowledge_layer.default_enabled` is set to `true`.
-- `web_search_tool.max_results` is reduced to `3`.
-- `knowledge_search.backend` remains `foundational_rag`, so this custom config still uses the RAG Blueprint.
-- `knowledge_search.top_k` is reduced to `3`.
-- `clarifier_agent.max_turns` is reduced to `2`.
-- `shallow_research_agent.max_tool_iterations` is reduced to `4`.
-- `shallow_research_agent.max_llm_turns` is reduced to `6`.
+### Customize logging level
 
-The practical impact is that AI-Q starts in a more document-focused posture: Knowledge Base is enabled by default, Web Search is available but disabled by default, RAG retrieval returns fewer chunks, and shallow research has a smaller iteration budget.
+`general.telemetry.logging.console.level` is set to `DEBUG`. This demonstrates how runtime logging can be changed from a mounted config file.
 
-<Callout type="note" title="Same structure, tuned values">
-  This file is based on the AI-Q `release/2.1` `configs/config_web_frag.yml`. It keeps the same major sections, including `data_sources`, and changes only selected values so you can see how a local config override works without changing the overall workflow design.
-</Callout>
+### Customize Data sources
+
+`functions.data_sources.sources` contains only `knowledge_layer`. The `web_search` source is intentionally removed from the registry, so the UI no longer shows Web Search as a selectable data source.
+
+This is the most visible customization in the lab. The data-source registry is what the UI uses to render source toggles, so changing the registry changes the list of sources the student can select.
+
+### Customize Knowledge layer
+
+`knowledge_search.backend` remains `foundational_rag`, so this custom config still uses the RAG Blueprint deployed earlier.
+
+`knowledge_search.top_k` is reduced to `3`. This is still relevant because Knowledge Base remains the active source: it controls how many retrieved chunks AI-Q asks the Knowledge Layer to return for a document-grounded request.
+
+### Customize Clarifier agent
+
+`clarifier_agent.max_turns` is reduced to `2`, which limits how many clarification turns AI-Q can use before continuing.
+
+The clarifier section also exposes human-in-the-loop behavior through `enable_plan_approval`. This lab keeps `enable_plan_approval: true`, but in a different demo you could set it to `false` to avoid asking the user to approve the plan before continuing.
+
+### Customize shallow research agent
+
+`shallow_research_agent.max_tool_iterations` is reduced to `4`, and `shallow_research_agent.max_llm_turns` is reduced to `6`. These values keep the shallow research path bounded for the lab environment.
+
+The practical impact is that AI-Q starts in a document-focused posture: Knowledge Base is the only data source exposed to the UI, RAG retrieval returns fewer chunks, and shallow research has a smaller iteration budget.
+
+
 
 ## 2. Inspect the config mount values file
 
@@ -118,28 +135,44 @@ Expected output:
 /app/custom-config/config_lab_custom.yml
 ```
 
-Verify the ConfigMap content that Kubernetes mounted into the pod:
-
-```bash
-kubectl get configmap aiq-custom-config -n ns-aiq \
-  -o jsonpath='{.data.config_lab_custom\.yml}' | grep -nE "level: DEBUG|default_enabled: false|default_enabled: true|max_results: 3|backend: foundational_rag|top_k: 3|max_turns: 2|max_tool_iterations: 4|max_llm_turns: 6"
-```
-
-You should see the custom values from `manifests/configs/config_lab_custom.yml`.
-
 You can also inspect the rendered deployment to verify the environment variable, `fusionConfig` volume mount, and ConfigMap volume:
 
 ```bash
 kubectl get deploy aiq-backend -n ns-aiq -o yaml | grep -nE "CONFIG_FILE|aiq-custom-config|custom-config" -A4 -B4
 ```
 
-## 6. Test the change from the AI-Q UI
+Verify the ConfigMap content that Kubernetes mounted into the pod:
 
-Open the AI-Q UI from the Brev endpoint for port `3001` with the `/aiq` path.
+```bash
+kubectl get configmap aiq-custom-config -n ns-aiq \
+  -o jsonpath='{.data.config_lab_custom\.yml}' | grep -nE "level: DEBUG|id: knowledge_layer|backend: foundational_rag|top_k: 3|max_turns: 2|enable_plan_approval: true|max_tool_iterations: 4|max_llm_turns: 6"
+```
+
+You should see the custom values from `manifests/configs/config_lab_custom.yml`.
+
+## 6. Test the change on Data sources
+
+Confirm that the backend now advertises only the Knowledge Base data source:
+
+```bash
+kubectl run aiq-data-sources-check -n ns-aiq --rm -i --restart=Never \
+  --image=curlimages/curl:8.10.1 -- \
+  sh -c 'curl -s http://aiq-backend:8000/v1/data_sources; echo'
+```
+
+Expected shape:
+
+```json
+[{"id":"knowledge_layer","name":"Knowledge Base","description":"Search uploaded documents and files.","requires_auth":false}]
+```
+
+## 7. Test the change from the AI-Q UI
+
+Open the AI-Q UI from the Brev exposed-port link for Envoy with the `/aiq` path.
 
 <AppLaunchButton label="Open AI-Q UI" path="/aiq" port={3001} />
 
-Open **Data Sources** and notice the changed defaults: Knowledge Base should be enabled by default, while Web Search should be available but disabled by default.
+Open **Data Sources** and notice the custom registry behavior: **Knowledge Base** is shown, and **Web Search** is not shown. That is the visible proof that the custom config changed the list of data sources exposed to the UI.
 
 Upload a file through the **Files** tab, then send a document-grounded prompt:
 
@@ -149,21 +182,21 @@ Using the uploaded document, summarize the key claims and list any implementatio
 
 This is a good test because it exercises the same FRAG path from the previous section while using the locally mounted config. The smaller `knowledge_search.top_k` should keep retrieval focused, and the reduced shallow research limits make the workflow easier to observe in the lab.
 
-Check the backend logs:
+Check the backend logs for the request path:
 
 ```bash
-kubectl logs -n ns-aiq deploy/aiq-backend --since=10m | grep -Ei "DEBUG|config_lab_custom|shallow_research_agent|intent_classifier|knowledge|rag|retriev|collection"
+kubectl logs -n ns-aiq deploy/aiq-backend --since=10m | grep -Ei "config_lab_custom|shallow_research_agent|intent_classifier|knowledge|rag|retriev|collection"
 ```
 
 Useful keywords to look for:
 
-- `DEBUG`, confirming the custom logging level is active.
 - `config_lab_custom`, confirming the mounted config path appears in startup or error logs.
 - `intent_classifier`, showing the request passed through classification.
 - `shallow_research_agent`, showing the shallow route was selected.
 - `knowledge`, `rag`, `retriev`, or `collection`, showing the Knowledge Base path was used.
 
-## 7. Troubleshoot
+
+## 8. Troubleshoot
 
 If the pod does not start, inspect the backend logs without filtering:
 
@@ -173,10 +206,11 @@ kubectl logs -n ns-aiq deploy/aiq-backend --since=10m
 
 Most startup failures in this section are caused by YAML indentation, a missing ConfigMap, a `CONFIG_FILE` path that does not match the mounted file path, or a custom config copied from a different AI-Q release than the backend image you are running.
 
-## 8. What just happened
+## 9. What just happened
 
 - You inspected a local AI-Q config file that builds on the FRAG workflow.
 - You created a ConfigMap from that local file.
 - You layered Helm values so AI-Q kept the FRAG environment variables while overriding only `CONFIG_FILE`.
 - You verified that the backend deployment points to the mounted config path.
+- You changed the `data_sources` registry so the UI exposes Knowledge Base but not Web Search.
 - You tested the behavior change from the AI-Q UI and logs.

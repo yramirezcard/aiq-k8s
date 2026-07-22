@@ -7,7 +7,23 @@ function buildAppUrl(path: string, port: number) {
   if (typeof window === "undefined") return "#";
 
   const url = new URL(window.location.href);
-  url.port = String(port);
+  const tunnelMatch = url.hostname.match(/^tunnel-(\d+)-(.+)$/);
+
+  if (tunnelMatch) {
+    const currentTunnel = Number(tunnelMatch[1]);
+    const suffix = tunnelMatch[2];
+    const currentPort = url.port ? Number(url.port) : 3000;
+    const targetTunnel = currentTunnel + (port - currentPort);
+
+    if (targetTunnel > 0) {
+      url.hostname = `tunnel-${targetTunnel}-${suffix}`;
+    }
+
+    url.port = "";
+  } else {
+    url.port = String(port);
+  }
+
   url.pathname = path.startsWith("/") ? path : `/${path}`;
   url.search = "";
   url.hash = "";

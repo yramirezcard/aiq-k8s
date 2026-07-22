@@ -1,7 +1,8 @@
 # Local AI-Q configuration used by Part IV of this tutorial.
 # This file is based on AI-Q release/2.1 configs/config_web_frag.yml.
 # It keeps the same FRAG sections and changes only a few values to demonstrate
-# how configuration tuning works.
+# how configuration tuning works. The data_sources registry intentionally keeps
+# only the Knowledge Base source so the UI no longer shows Web Search.
 
 general:
   use_uvloop: true
@@ -70,13 +71,6 @@ functions:
   data_sources:
     _type: data_source_registry
     sources:
-      - id: web_search
-        name: "Web Search"
-        description: "Search the web for real-time information."
-        default_enabled: false
-        tools:
-          - web_search_tool
-          - advanced_web_search_tool
       - id: knowledge_layer
         name: "Knowledge Base"
         description: "Search uploaded documents and files."
@@ -86,7 +80,7 @@ functions:
 
   web_search_tool:
     _type: tavily_web_search
-    max_results: 3
+    max_results: 5
     max_content_length: 1000
 
   advanced_web_search_tool:

@@ -132,7 +132,7 @@ Envoy serves application frontends from port `3001`. The `/rag` path is an entry
 
 <AppLaunchButton label="Open RAG UI" path="/rag" port={3001} />
 
-If your browser blocks pop-ups or your Brev environment exposes ports as separate secure links, open the Brev launchable endpoint for port `3001`, then add `/rag` to the URL path.
+If your browser blocks pop-ups, open the Brev exposed-port link for Envoy and use the `/rag` path. In Brev, that link is usually a separate secure tunnel hostname, not the lab UI URL with `:3001` appended.
 
 Use the chatbot to ask a question, for example `What is the NVIDIA RAG Blueprint?`, and validate that you get a response.
 

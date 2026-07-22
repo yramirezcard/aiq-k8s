@@ -54,7 +54,7 @@ The tutorial UI itself runs on port `3000`, so AI-Q needs a different external e
 
 <AppLaunchButton label="Open AI-Q UI" path="/aiq" port={3001} />
 
-The button opens the current lab hostname on port `3001` with the `/aiq` path. If your browser blocks pop-ups or your Brev environment exposes ports as separate secure links, open the Brev launchable endpoint for port `3001`, then add `/aiq` to the URL path.
+The button opens the Brev exposed-port link for Envoy with the `/aiq` path. In Brev, each exposed port can have its own tunnel hostname, so the correct URL usually looks like a separate secure tunnel ending in `/aiq`, without an explicit `:3001` suffix.
 
 ## Route test overview
 
