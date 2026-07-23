@@ -4,11 +4,6 @@
 # NGC pull/auth secrets to already exist. It uses DRA auto-creation so the
 # NIMService creates its ResourceClaimTemplate from spec.draResources.
 
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: nim-service
----
 apiVersion: apps.nvidia.com/v1alpha1
 kind: NIMCache
 metadata:
@@ -17,11 +12,11 @@ metadata:
 spec:
   source:
     ngc:
-      modelPuller: nvcr.io/nim/nvidia/nemotron-3-nano-30b-a3b:latest
+      modelPuller: nvcr.io/nim/nvidia/nemotron-3-nano:2.0.8
       pullSecret: ngc-secret
       authSecret: ngc-api-secret
       model:
-        engine: tensorrt_llm
+        engine: vllm
         tensorParallelism: "1"
   storage:
     pvc:
@@ -37,8 +32,8 @@ metadata:
   namespace: nim-service
 spec:
   image:
-    repository: nvcr.io/nim/nvidia/nemotron-3-nano-30b-a3b
-    tag: latest
+    repository: nvcr.io/nim/nvidia/nemotron-3-nano
+    tag: 2.0.8
     pullPolicy: IfNotPresent
     pullSecrets:
       - ngc-secret
@@ -46,7 +41,7 @@ spec:
   storage:
     nimCache:
       name: nemotron-3-nano-30b-a3b
-      profile: ""
+      profile: "352d88f8021d0ce396a61d10e929d1d4b45f75038b593595d0d92f80a398a032"
   replicas: 1
   draResources:
     - claimCreationSpec:
@@ -57,7 +52,7 @@ spec:
             capacitySelectors:
               - key: memory
                 op: GreaterThanOrEqual
-                value: 40Gi
+                value: 80Gi
   expose:
     service:
       type: ClusterIP

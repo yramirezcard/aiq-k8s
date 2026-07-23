@@ -24,7 +24,7 @@ In the self-hosted path, AI-Q calls a Kubernetes service created by the NIM Oper
 http://nemotron-3-nano.nim-service.svc.cluster.local:8000/v1
 ```
 
-The model name stays `nvidia/nemotron-3-nano-30b-a3b`. The important change is the `base_url` in the AI-Q configuration.
+The model name changes to `nvidia/nemotron-3-nano` and the `base_url` points to a local service running on the same cluster.
 
 ## 1. Prerequisites
 
@@ -38,24 +38,6 @@ You need these pieces before creating the `NIMService`:
 - NGC credentials that can pull the NIM image and download model assets.
 - Enough GPU memory and storage for `nvidia/nemotron-3-nano-30b-a3b`.
 
-Check the cluster basics:
-
-```bash
-kubectl get nodes -o wide
-kubectl get crd | grep -E "nimservices|nimcaches"
-kubectl get deviceclass
-```
-
-Expected shape:
-
-```text
-nimservices.apps.nvidia.com
-nimcaches.apps.nvidia.com
-gpu.nvidia.com
-```
-
-If `kubectl get deviceclass` does not show `gpu.nvidia.com`, the GPU DRA driver is not ready yet.
-
 ## 2. Label GPU nodes for DRA
 
 The DRA driver uses a node selector so it only runs on nodes that should support GPU allocation. Label each GPU node before installing the GPU Operator and DRA driver.
@@ -63,7 +45,7 @@ The DRA driver uses a node selector so it only runs on nodes that should support
 List the nodes:
 
 ```bash
-kubectl get nodes -o wide
+kubectl get nodes
 ```
 
 Label the GPU node. Replace `<gpu-node-name>` with the node that has NVIDIA GPU capacity:
@@ -87,6 +69,9 @@ The GPU Operator installs and manages the NVIDIA GPU driver, container toolkit, 
 ```bash
 helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
 helm repo update
+```
+
+```bash
 helm upgrade --install gpu-operator nvidia/gpu-operator \
   --version "v26.3.3" \
   --create-namespace \
@@ -128,16 +113,19 @@ helm upgrade --install dra-driver-nvidia-gpu nvidia/dra-driver-nvidia-gpu \
   --create-namespace \
   --namespace nvidia-dra-driver-gpu \
   --set gpuResourcesEnabledOverride=true \
-  --set nvidiaDriverRoot=/run/nvidia/driver \
+  --set nvidiaDriverRoot=/ \
   -f dra-driver-values.yaml
 ```
 
-If your cluster uses a host-provided NVIDIA driver instead of a GPU Operator-managed driver, remove `--set nvidiaDriverRoot=/run/nvidia/driver` or set `nvidiaDriverRoot=/`.
+In the lab the cluster uses a host-provided NVIDIA driver instead of a GPU Operator-managed driver, therefore we set `nvidiaDriverRoot=/`.
 
 Validate the DRA driver:
 
 ```bash
 kubectl get pods -n nvidia-dra-driver-gpu
+```
+
+```bash
 kubectl get deviceclass
 ```
 
@@ -154,6 +142,9 @@ If the NIM Operator is already installed in your environment, skip this step.
 ```bash
 helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
 helm repo update
+```
+
+```bash
 kubectl create namespace nim-operator --dry-run=client -o yaml | kubectl apply -f -
 helm upgrade --install nim-operator nvidia/k8s-nim-operator \
   -n nim-operator \
@@ -164,6 +155,9 @@ Validate the NIM Operator:
 
 ```bash
 kubectl get pods -n nim-operator
+```
+
+```bash
 kubectl get crd | grep -E "nimservices|nimcaches"
 ```
 
@@ -192,6 +186,10 @@ kubectl create secret docker-registry ngc-secret \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
+```bash
+kubectl get secret ngc-secret -n nim-service
+```
+
 Create the NGC API secret used by the NIM cache and model puller:
 
 ```bash
@@ -199,6 +197,10 @@ kubectl create secret generic ngc-api-secret \
   -n nim-service \
   --from-literal=NGC_API_KEY="$NGC_API_KEY" \
   --dry-run=client -o yaml | kubectl apply -f -
+```
+
+```bash
+kubectl get secret ngc-api-secret -n nim-service
 ```
 
 ## 7. Inspect the NIMService manifest
@@ -211,7 +213,6 @@ cat manifests/nimservice-nemotron-3-nano-dra.yaml
 
 The file creates:
 
-- `Namespace/nim-service`, where the NIM resources live.
 - `NIMCache/nemotron-3-nano-30b-a3b`, which prepares model assets from NGC.
 - `NIMService/nemotron-3-nano`, which serves the OpenAI-compatible `/v1` API.
 - A DRA `claimCreationSpec`, which asks the GPU DRA driver for one GPU with at least `40Gi` memory.
@@ -242,15 +243,28 @@ Apply the manifest:
 kubectl apply -f manifests/nimservice-nemotron-3-nano-dra.yaml
 ```
 
-Watch the resources:
+A Job is created and controlled by NIMCache. 
 
 ```bash
-kubectl get nimcache,nimservice,pods,svc -n nim-service
+kubectl get job -n nim-service
+```
+Inspect the NIMCache status:
+
+```bash
+kubectl get nimcache -n nim-service
+```
+<Callout type="warn" title="Wait before continue">
+  The first start can take a while because the model assets must be pulled and cached. Wait for the job to download the model and for NimCache to be in a Ready State.
+</Callout>
+
+
+Once NIMCache is Ready, inspect the NIMService Status
+
+```bash
+kubectl get nimservice -n nim-service
 ```
 
-The first start can take a while because the model assets must be pulled and cached.
-
-Inspect the NIMService status:
+It can take few minutes while the model is load in memory. Inspect the NIMService events to see the progress.
 
 ```bash
 kubectl describe nimservice nemotron-3-nano -n nim-service
@@ -260,17 +274,26 @@ If the pod is pending, inspect the DRA-related resources:
 
 ```bash
 kubectl get resourceclaim,resourceclaimtemplate -n nim-service
+```
+
+```bash
 kubectl describe pod -n nim-service -l app.kubernetes.io/name=nemotron-3-nano
 ```
 
-## 9. Validate the local NIM without port-forward
+## 9. Validate the local NIM
 
 Use a temporary curl pod in the same namespace:
 
 ```bash
 kubectl run nim-health-check -n nim-service --rm -i --restart=Never \
   --image=curlimages/curl:8.10.1 -- \
-  sh -c 'curl -sS -w "\nHTTP %{http_code}\n" http://nemotron-3-nano:8000/v1/health/ready'
+  sh -c 'curl -sS -w "\nHTTP %{http_code}\n" http://nemotron-3-nano:8000/v1/health/ready' | jq
+```
+
+Expected outcome
+```
+{"object":"health.response","message":"ready","status":"ready"}
+HTTP 200
 ```
 
 If that endpoint is not exposed by your NIM image, test model listing:
@@ -278,7 +301,7 @@ If that endpoint is not exposed by your NIM image, test model listing:
 ```bash
 kubectl run nim-models-check -n nim-service --rm -i --restart=Never \
   --image=curlimages/curl:8.10.1 -- \
-  sh -c 'curl -sS -w "\nHTTP %{http_code}\n" http://nemotron-3-nano:8000/v1/models'
+  sh -c 'curl -sS -w "\nHTTP %{http_code}\n" http://nemotron-3-nano:8000/v1/models' | jq
 ```
 
 Run a small chat completion request:
@@ -288,7 +311,7 @@ kubectl run nim-chat-check -n nim-service --rm -i --restart=Never \
   --image=curlimages/curl:8.10.1 -- \
   sh -c 'curl -sS -X POST http://nemotron-3-nano:8000/v1/chat/completions \
     -H "Content-Type: application/json" \
-    -d "{\"model\":\"nvidia/nemotron-3-nano-30b-a3b\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with one sentence explaining what AI-Q does.\"}],\"max_tokens\":80}"'
+    -d "{\"model\":\"nvidia/nemotron-3-nano\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with one sentence explaining what AI-Q does.\"}],\"max_tokens\":80}"' | jq
 ```
 
 You should see a JSON response with generated text. If the request times out, check the NIM pod logs:
@@ -311,7 +334,7 @@ The important difference is in the `llms` section:
 llms:
   local_nemotron_nano_llm:
     _type: nim
-    model_name: nvidia/nemotron-3-nano-30b-a3b
+    model_name: nvidia/nemotron-3-nano
     base_url: "http://nemotron-3-nano.nim-service.svc.cluster.local:8000/v1"
 ```
 
@@ -395,7 +418,9 @@ kubectl get configmap aiq-local-nim-config -n ns-aiq \
   -o jsonpath='{.data.config-local-nim\.yml}' | grep -nE "local_nemotron_nano_llm|nemotron-3-nano|base_url|model_name"
 ```
 
-Then send a simple AI-Q request from the UI:
+Then open the AI-Q UI and send a simple request:
+
+<AppLaunchButton label="Open AI-Q UI" path="/aiq" port={3001} />
 
 ```text
 What can AI-Q help me with?
