@@ -8,8 +8,50 @@ type Status = "idle" | "connecting" | "live" | "closed" | "error";
 function xtermTheme() {
   const light = typeof document !== "undefined" && document.documentElement.dataset.theme === "light";
   return light
-    ? { background: "#f3f5f9", foreground: "#1f2937", cursor: "#4d7a00", green: "#4d7a00", brightGreen: "#76b900", selectionBackground: "#cde2a3" }
-    : { background: "#0a0d07", foreground: "#d6e4c4", cursor: "#92e600", green: "#76b900", brightGreen: "#92e600", selectionBackground: "#243018" };
+    ? {
+        background: "#f8fafc",
+        foreground: "#1f2937",
+        cursor: "#4d7a00",
+        selectionBackground: "#cde2a3",
+        black: "#1f2937",
+        red: "#b91c1c",
+        green: "#4d7a00",
+        yellow: "#a16207",
+        blue: "#2563eb",
+        magenta: "#7c3aed",
+        cyan: "#0891b2",
+        white: "#e5e7eb",
+        brightBlack: "#64748b",
+        brightRed: "#dc2626",
+        brightGreen: "#76b900",
+        brightYellow: "#ca8a04",
+        brightBlue: "#3b82f6",
+        brightMagenta: "#8b5cf6",
+        brightCyan: "#06b6d4",
+        brightWhite: "#ffffff",
+      }
+    : {
+        background: "#0b111d",
+        foreground: "#d6dde8",
+        cursor: "#92e600",
+        selectionBackground: "#263548",
+        black: "#0b111d",
+        red: "#ff6b6b",
+        green: "#76b900",
+        yellow: "#f7c948",
+        blue: "#66a3ff",
+        magenta: "#c084fc",
+        cyan: "#38d6e8",
+        white: "#d6dde8",
+        brightBlack: "#6b7280",
+        brightRed: "#ff8787",
+        brightGreen: "#92e600",
+        brightYellow: "#fde047",
+        brightBlue: "#93c5fd",
+        brightMagenta: "#d8b4fe",
+        brightCyan: "#67e8f9",
+        brightWhite: "#ffffff",
+      };
 }
 
 export function Terminal({ title = "lab shell", fill = false }: { title?: string; fill?: boolean }) {
@@ -56,7 +98,8 @@ export function Terminal({ title = "lab shell", fill = false }: { title?: string
 
         term = new XTerm({
           fontFamily: "var(--font-mono), 'JetBrains Mono', 'SF Mono', 'Menlo', 'Consolas', monospace",
-          fontSize: 13,
+          fontSize: 14,
+          lineHeight: 1.18,
           cursorBlink: true,
           scrollback: 5000,
           theme: xtermTheme(),
