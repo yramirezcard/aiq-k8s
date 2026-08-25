@@ -44,8 +44,8 @@ Run the health check from inside the cluster with a temporary curl pod. This avo
 
 ```bash
 kubectl run aiq-backend-healthcheck -n ns-aiq --rm -i --restart=Never \
-  --image=curlimages/curl:8.10.1 -- \
-  curl -sf http://aiq-backend:8000/health | jq
+  --image=badouralix/curl-jq:latest -- \
+  sh -c 'curl -sf http://aiq-backend:8000/health | jq .'
 ```
 
 Expected result: the command exits successfully and prints the backend health response.

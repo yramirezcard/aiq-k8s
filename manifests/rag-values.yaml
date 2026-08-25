@@ -1,6 +1,7 @@
 # Custom values for the AI-Q on Kubernetes lab.
 # These overrides keep model inference on NVIDIA hosted endpoints and avoid GPU
-# requirements for the vector database path.
+# requirements for the vector database path. RAG Blueprint v2.6.0 uses
+# Elasticsearch as the default vector database, managed by the ECK operator.
 
 imagePullSecret:
   name: ngc-secret
@@ -16,25 +17,36 @@ apiKeysSecret:
   create: true
   name: rag-api-keys
 
+server:
+  workers: 1
+
+resources:
+  requests:
+    memory: "2Gi"
+  limits:
+    memory: "8Gi"
+
 envVars:
   # Empty model server URLs instruct the RAG services to use NVIDIA hosted
-  # endpoints. Model names stay aligned with the RAG Helm chart v2.5.0 defaults.
+  # endpoints. Model names stay aligned with hosted endpoint availability for
+  # the RAG Helm chart v2.6.0 deployment path.
+  APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-default:9200"
+  APP_VECTORSTORE_NAME: "elasticsearch"
+  APP_VECTORSTORE_SEARCHTYPE: "dense"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
   APP_LLM_SERVERURL: ""
   APP_QUERYREWRITER_SERVERURL: ""
   APP_FILTEREXPRESSIONGENERATOR_SERVERURL: ""
   APP_EMBEDDINGS_SERVERURL: ""
   APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
-  APP_RANKING_SERVERURL: ""
+  APP_RANKING_SERVERURL: "" #"https://ai.api.nvidia.com"
   APP_RANKING_MODELNAME: "nvidia/llama-nemotron-rerank-vl-1b-v2"
+  ENABLE_RERANKER: "True"
+  ENABLE_VLM_RERANKER_IMAGE_INPUT: "False"
 
   REFLECTION_LLM_SERVERURL: ""
   APP_VLM_SERVERURL: ""
 
-  # CPU vector search for the lab environment.
-  APP_VECTORSTORE_NAME: "milvus"
-  APP_VECTORSTORE_URL: "http://milvus:19530"
-  APP_VECTORSTORE_INDEXTYPE: "HNSW"
-  APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
 
 ingestor-server:
   resources:
@@ -45,17 +57,16 @@ ingestor-server:
       cpu: "2"
       memory: "4Gi"
   envVars:
-    # Empty means NVIDIA hosted endpoint usage in the v2.5.0 RAG services.
-    APP_EMBEDDINGS_SERVERURL: ""
-    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2" 
-    SUMMARY_LLM_SERVERURL: ""
-    APP_NVINGEST_CAPTIONENDPOINTURL: "https://integrate.api.nvidia.com/v1/chat/completions"
-
-    # CPU vector indexing and search for the lab environment.
-    APP_VECTORSTORE_NAME: "milvus"
-    APP_VECTORSTORE_URL: "http://milvus:19530"
+    # Empty means NVIDIA hosted endpoint usage in the v2.6.0 RAG services.
+    APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-default:9200"
+    APP_VECTORSTORE_NAME: "elasticsearch"
+    APP_VECTORSTORE_SEARCHTYPE: "dense"
     APP_VECTORSTORE_ENABLEGPUINDEX: "False"
     APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+    APP_EMBEDDINGS_SERVERURL: ""
+    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
+    SUMMARY_LLM_SERVERURL: ""
+    APP_NVINGEST_CAPTIONENDPOINTURL: "https://integrate.api.nvidia.com/v1/chat/completions"
 
     # Keep ingestion text-focused for a CPU launchable.
     APP_NVINGEST_EXTRACTTEXT: "True"
@@ -63,6 +74,15 @@ ingestor-server:
     APP_NVINGEST_EXTRACTCHARTS: "False"
     APP_NVINGEST_EXTRACTIMAGES: "False"
     APP_NVINGEST_EXTRACTINFOGRAPHICS: "False"
+    APP_NVINGEST_EXTRACTPAGEASIMAGE: "False"
+    APP_NVINGEST_EXTRACTTABLESMETHOD: "None"
+    APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING: "False"
+    APP_NVINGEST_ENABLE_PAGED_DOC_SPLIT: "False"
+    NV_INGEST_FILES_PER_BATCH: "1"
+    NV_INGEST_CONCURRENT_BATCHES: "1"
+    ENABLE_NV_INGEST_DYNAMIC_BATCHING: "False"
+    INGESTION_MAX_MEMORY_BUDGET_MB: "512"
+    APP_TRACING_ENABLED: "False"
 
 frontend:
   service:
@@ -72,25 +92,24 @@ frontend:
       value: "http://rag-server:8081/v1"
     - name: VITE_API_VDB_URL
       value: "http://ingestor-server:8082/v1"
-    - name: VITE_MILVUS_URL
-      value: "http://milvus:19530"
+
+eck-elasticsearch:
+  enabled: true
 
 nimOperator:
   nim-llm:
-    enabled: false
-  nim-vlm:
-    enabled: false
-  nim-vlm-captioning:
-    enabled: false
-  nvidia-nim-llama-32-nv-embedqa-1b-v2:
-    enabled: false
-  nvidia-nim-llama-32-nv-rerankqa-1b-v2:
     enabled: false
   nvidia-nim-llama-nemotron-embed-vl-1b-v2:
     enabled: false
   nvidia-nim-llama-nemotron-embed-1b-v2:
     enabled: false
   nvidia-nim-llama-nemotron-rerank-1b-v2:
+    enabled: false
+  nvidia-nim-llama-nemotron-rerank-vl-1b-v2:
+    enabled: false
+  nim-vlm:
+    enabled: false
+  nim-vlm-captioning:
     enabled: false
 
 nv-ingest:
@@ -108,16 +127,7 @@ nv-ingest:
       cpu: "3"
       memory: "10Gi"
   tmpDirSize: "20Gi"
-  milvusDeployed: true
-  milvus:
-    image:
-      all:
-        repository: docker.io/milvusdb/milvus
-        tag: v2.6.5
-    standalone:
-      resources:
-        limits:
-          nvidia.com/gpu: 0
+  milvusDeployed: false
   nimOperator:
     page_elements:
       enabled: false
@@ -137,6 +147,10 @@ nv-ingest:
     # so the pipeline can start on CPU-only launchables.
     VLM_CAPTION_ENDPOINT: "https://integrate.api.nvidia.com/v1/chat/completions"
     COMPONENTS_TO_READY_CHECK: ""
-    MAX_INGEST_PROCESS_WORKERS: "2"
-    NV_INGEST_MAX_UTIL: "2"
-    PDF_SPLIT_PAGE_COUNT: "8"
+    MAX_INGEST_PROCESS_WORKERS: "1"
+    NV_INGEST_MAX_UTIL: "1"
+    PDF_SPLIT_PAGE_COUNT: "64"
+    ENABLE_NV_INGEST_DYNAMIC_BATCHING: "False"
+    INGESTION_MAX_MEMORY_BUDGET_MB: "512"
+    READY_CHECK_ALL_COMPONENTS: "False"
+    OTEL_SDK_DISABLED: "true"

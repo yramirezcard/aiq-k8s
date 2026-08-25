@@ -63,7 +63,7 @@ In the previous AI-Q deployment, the default configuration used the `llamaindex`
 | Backend | How it works | Vector store | Best fit | Tradeoff |
 |---|---|---|---|---|
 | `llamaindex` | Runs as a local library inside the AI-Q backend process. | ChromaDB | Development, quick demos, single-user experimentation, simple local document flows. | Easier to start, but less production-shaped and less separated from the AI-Q backend lifecycle. |
-| `foundational_rag` | Calls the NVIDIA RAG Blueprint services through HTTP. | Remote Milvus in the RAG deployment | Production-like Kubernetes labs, multi-service deployments, shared ingestion/retrieval services, and larger enterprise RAG patterns. | Requires extra infrastructure, but gives a cleaner service boundary and a scalable RAG control plane. |
+| `foundational_rag` | Calls the NVIDIA RAG Blueprint services through HTTP. | Elasticsearch managed by ECK in the RAG deployment | Production-like Kubernetes labs, multi-service deployments, shared ingestion/retrieval services, and larger enterprise RAG patterns. | Requires extra infrastructure, but gives a cleaner service boundary and a scalable RAG control plane. |
 
 The practical rule of thumb: use `llamaindex` when you want the smallest local path, and use `foundational_rag` when the retrieval service should be deployed, scaled, validated, and operated independently from AI-Q.
 

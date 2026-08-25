@@ -1,4 +1,4 @@
-This hands-on section deploys the NVIDIA RAG Blueprint with Helm. The lab values file keeps model inference on NVIDIA hosted endpoints and configures the vector database path for CPU operation.
+This hands-on section deploys the NVIDIA RAG Blueprint `v2.6.0` with Helm. The lab values file keeps model inference on NVIDIA hosted endpoints and uses Elasticsearch as the vector database, which is the default vector store for the `v2.6.0` chart.
 
 ## Prerequisites
 
@@ -22,7 +22,35 @@ export NGC_API_KEY="<your-ngc-or-nvidia-api-key>"
 Do not paste real keys into shared logs or committed files. The commands below pass the key to Helm so Kubernetes secrets can be created by the chart.
 </Callout>
 
-## 1. Create the namespace
+The `v2.6.0` RAG chart also expects Elastic Cloud on Kubernetes (ECK). ECK installs the Elasticsearch custom resources and operator that the chart uses to create the default vector database.
+
+## 1. Install the ECK operator
+
+Add the Elastic Helm repository and install the ECK operator:
+
+```bash
+helm repo add elastic https://helm.elastic.co
+helm repo update
+helm upgrade --install elastic-operator elastic/eck-operator \
+  -n elastic-system \
+  --create-namespace
+```
+
+Wait for the operator to become available:
+
+```bash
+kubectl rollout status deployment/elastic-operator \
+  -n elastic-system \
+  --timeout=180s
+```
+
+You should see the ECK operator pod running:
+
+```bash
+kubectl get pods -n elastic-system
+```
+
+## 2. Create the namespace
 
 Create the namespace if it does not already exist:
 
@@ -32,18 +60,18 @@ kubectl create namespace rag --dry-run=client -o yaml | kubectl apply -f -
 
 This command is rerunnable. If you repeat the lab, Kubernetes keeps the existing namespace and continues.
 
-## 2. Inspect the chart defaults
+## 3. Inspect the chart defaults
 
 Start by looking at the upstream chart defaults. This helps you see what the lab override file is changing.
 
 ```bash
-helm show values https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.5.0.tgz \
+helm show values https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
   --username '$oauthtoken' \
   --password "$NGC_API_KEY" | sed -n '1,220p'
 ```
 
 
-## 3. Inspect the lab values file
+## 4. Inspect the lab values file
 
 This repository includes the custom values used by the launchable:
 
@@ -53,21 +81,22 @@ cat manifests/rag-values.yaml
 
 The important settings are:
 
-- Hosted endpoints: for the RAG `v2.5.0` services, empty model server URL fields mean "use NVIDIA hosted endpoints" instead of in-cluster NIM services. The NV-Ingest runtime is stricter, so the lab sets `EMBEDDING_NIM_ENDPOINT` explicitly to the hosted embeddings base URL.
-- RAG `v2.5.0` model names: the lab uses the `v2.5.0` default hosted models that are currently available: `APP_EMBEDDINGS_MODELNAME` and `EMBEDDING_NIM_MODEL_NAME` use `nvidia/llama-nemotron-embed-vl-1b-v2`, and `APP_RANKING_MODELNAME` uses `nvidia/llama-nemotron-rerank-vl-1b-v2`.
+- Hosted endpoints: for the RAG `v2.6.0` services, empty model server URL fields mean "use NVIDIA hosted endpoints" instead of in-cluster NIM services. The NV-Ingest runtime is stricter, so the lab sets `EMBEDDING_NIM_ENDPOINT` explicitly to the hosted embeddings base URL.
+- RAG `v2.6.0` model names: the lab uses hosted endpoint model names that work with the `v2.6.0` chart configuration: `APP_EMBEDDINGS_MODELNAME` and `EMBEDDING_NIM_MODEL_NAME` use `nvidia/llama-nemotron-embed-vl-1b-v2`, and `APP_RANKING_MODELNAME` uses `nvidia/llama-nemotron-rerank-vl-1b-v2`.
 - Local NIM services disabled: the `nimOperator` overrides disable local model-serving pods so the lab does not require GPUs or large model caches.
-- CPU vector database path: `APP_VECTORSTORE_ENABLEGPUSEARCH` and `APP_VECTORSTORE_ENABLEGPUINDEX` are set to `False`, and the Milvus image is set to the CPU image tag.
+- Elasticsearch vector database: `eck-elasticsearch.enabled` is set to `true`, `APP_VECTORSTORE_NAME` is set to `elasticsearch`, and `APP_VECTORSTORE_URL` points to the Elasticsearch service that ECK creates in the `rag` namespace.
+- CPU vector search path: `APP_VECTORSTORE_ENABLEGPUSEARCH` and `APP_VECTORSTORE_ENABLEGPUINDEX` are set to `False` so the vector database path does not require GPUs.
 - Text-focused ingestion: table, chart, image, and infographic extraction are disabled so the launchable can focus on document text ingestion without requiring extraction NIMs.
 - Smaller NV-Ingest footprint: the upstream NV-Ingest defaults request much larger resources than this launchable provides. The lab values reduce `nv-ingest.resources`, `MAX_INGEST_PROCESS_WORKERS`, `NV_INGEST_MAX_UTIL`, and `PDF_SPLIT_PAGE_COUNT` for an 8 CPU / 32 GiB VM.
 - Secrets are not stored in the file. The API key is passed through Helm flags during installation.
 
-## 4. Install the RAG Blueprint
+## 5. Install the RAG Blueprint
 
 Install the chart with the lab values file:
 
 ```bash
 helm upgrade --install rag -n rag \
-  https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.5.0.tgz \
+  https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
   --username '$oauthtoken' \
   --password "$NGC_API_KEY" \
   --set imagePullSecret.password="$NGC_API_KEY" \
@@ -76,7 +105,7 @@ helm upgrade --install rag -n rag \
   --wait --timeout 20m
 ```
 
-## 5. Validate the deployment
+## 6. Validate the deployment
 
 Check that all pods are running:
 
@@ -87,11 +116,12 @@ kubectl get pods -n rag
 Expected shape:
 
 ```text
-rag-server-...        1/1 Running
-ingestor-server-...   1/1 Running
-rag-frontend-...      1/1 Running
-rag-minio-...         1/1 Running
-rag-redis-...         1/1 Running
+rag-server-...                         1/1 Running
+ingestor-server-...                    1/1 Running
+rag-frontend-...                       1/1 Running
+rag-nv-ingest-...                      1/1 Running
+rag-eck-elasticsearch-es-default-0     1/1 Running
+rag-redis-...                          1/1 Running
 ```
 
 Verify the k8s services:
@@ -105,6 +135,7 @@ The services AI-Q will use later are:
 - `rag-server` on port `8081`
 - `ingestor-server` on port `8082`
 - `rag-frontend` on port `3000`, exposed through Envoy at `/rag`
+- `rag-eck-elasticsearch-es-default` on port `9200`, used internally as the vector database
 
 
 Verify the Envoy route:
@@ -117,8 +148,9 @@ You can also run direct health checks from inside the cluster.
 
 Start a temporary curl pod to check the RAG server:
 
+
 ```bash
-kubectl run rag-healthcheck -n rag --rm -i --restart=Never \
+kubectl run rag-healthcheck -n rag --quiet --rm -i --restart=Never \
   --image=curlimages/curl:8.10.1 -- \
   curl -sf http://rag-server:8081/health | jq
 ```
@@ -126,7 +158,7 @@ kubectl run rag-healthcheck -n rag --rm -i --restart=Never \
 Then check the ingestor server:
 
 ```bash
-kubectl run rag-ingestor-healthcheck -n rag --rm -i --restart=Never \
+kubectl run rag-ingestor-healthcheck -n rag --quiet --rm -i --restart=Never \
   --image=curlimages/curl:8.10.1 -- \
   curl -sf http://ingestor-server:8082/health | jq
 ```
@@ -134,17 +166,15 @@ kubectl run rag-ingestor-healthcheck -n rag --rm -i --restart=Never \
 Expected result: each endpoint returns HTTP `200` or a successful health response.
 
 
-## 6. Access the RAG web UI
+## 7. Access the RAG web UI
 
 Envoy serves application frontends from port `3001`. The `/rag` path is an entry point to the RAG UI and redirects to the RAG frontend root on the same Envoy port.
 
 <AppLaunchButton label="Open RAG UI" path="/rag" port={3001} />
 
-If your browser blocks pop-ups, open the Brev exposed-port link for Envoy and use the `/rag` path. In Brev, that link is usually a separate secure tunnel hostname, not the lab UI URL with `:3001` appended.
+As you can see, there are no collections created yet. The files will be uploaded directly from the AI-Q UI.
 
-Use the chatbot to ask a question, for example `What is the NVIDIA RAG Blueprint?`, and validate that you get a response.
-
-## 7. Troubleshoot
+## 8. Troubleshoot
 
 If a pod is not ready, inspect events and logs:
 
@@ -164,6 +194,14 @@ If you see `Insufficient cpu` or `Insufficient memory` for `rag-nv-ingest`, the 
 helm get values rag -n rag --all | grep -nE "nv-ingest:|resources:|MAX_INGEST_PROCESS_WORKERS|NV_INGEST_MAX_UTIL|PDF_SPLIT_PAGE_COUNT" -A12 -B2
 ```
 
+If Elasticsearch pods are not created or stay unhealthy, check that ECK is installed and that the Elasticsearch custom resource exists:
+
+```bash
+kubectl get pods -n elastic-system
+kubectl get elasticsearch -n rag
+kubectl describe elasticsearch -n rag
+```
+
 To trace requests, you can look at the rag-server logs
 
 ```bash
@@ -178,13 +216,14 @@ kubectl logs -n rag deploy/rag-nv-ingest --since=10m
 
 
 
-Source reference: [Deploy NVIDIA RAG Blueprint on Kubernetes with Helm](https://docs.nvidia.com/rag/2.5.0/deploy-helm.html).
+Source reference: [Deploy NVIDIA RAG Blueprint on Kubernetes with Helm](https://github.com/NVIDIA-AI-Blueprints/rag/blob/v2.6.0/docs/deploy-helm.md).
 
-## 8. What just happened
+## 9. What just happened
 
+- You installed the ECK operator because the RAG `v2.6.0` chart uses Elasticsearch as its default vector database.
 - You created the `rag` namespace.
 - You inspected the upstream RAG Helm chart defaults and the lab override values.
-- You installed the RAG Blueprint `v2.5.0` chart with NVIDIA hosted endpoints and CPU-oriented vector database settings.
+- You installed the RAG Blueprint `v2.6.0` chart with NVIDIA hosted endpoints and CPU-oriented vector database settings.
 - You validated the main RAG pods and services.
 - You opened the RAG frontend through Envoy on `/rag`.
 - You learned how to check RAG health from inside the cluster without using port-forward.

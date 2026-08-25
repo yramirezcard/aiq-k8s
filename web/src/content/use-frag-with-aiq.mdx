@@ -1,3 +1,7 @@
+import webSearchOff from "../images/disable-websearch.png";
+import fileUploaded from "../images/file-uploaded.png";
+import FRAGResponse from "../images/aiq-frag-response.png";
+
 After the RAG Blueprint is running, upgrade AI-Q so its backend can use FRAG as a knowledge source. FRAG gives AI-Q access to the RAG server and ingestor APIs that were deployed in the previous section.
 
 ## 1. Inspect the FRAG values file
@@ -79,7 +83,7 @@ Before uploading a file, inspect the collections currently known by the RAG inge
 ```bash
 kubectl run rag-collections-check -n rag --rm -i --restart=Never \
   --image=curlimages/curl:8.10.1 -- \
-  sh -c 'curl -sS -w "\nHTTP %{http_code}\n" http://ingestor-server:8082/collections'
+  sh -c 'curl -sS -w "\nHTTP %{http_code}\n" http://ingestor-server:8082/collections' | jq .
 ```
 
 The collection queried by AI-Q is controlled by `COLLECTION_NAME`. This lab uses `default`:
@@ -100,18 +104,22 @@ Follow this sequence:
 
 1. Open **Data Sources**.
 2. In **Connections**, disable **Web Search**.
+
+<img
+  src={webSearchOff.src}
+  alt="screenshot showing how to disable web search"
+  className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3"
+/>
+
 3. Open the **Files** tab.
 4. Upload a PDF or text document from the AI-Q UI.
 5. Wait until ingestion finishes.
-6. Ask a question that can only be answered from the uploaded file.
 
-Example:
-
-```text
-Using the uploaded document, summarize the main problem, the proposed solution, and any implementation constraints.
-```
-
-This is a good FRAG test because AI-Q should need the document corpus rather than a general web answer. While the model is thinking, the selected data source should mention the uploaded file name or file-backed knowledge source instead of only **Web Search**.
+<img
+  src={fileUploaded.src}
+  alt="screenshot showing when a file is uploaded to the FRAG"
+  className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3"
+/>
 
 After upload, inspect the collections again. You should see the collection used by AI-Q and the uploaded file counted in its metadata:
 
@@ -122,6 +130,24 @@ kubectl run rag-collections-after-upload -n rag --rm -i --restart=Never \
 ```
 
 Use the collection metadata from `/collections` as the primary verification signal. A successful upload should increase `number_of_files`, `total_elements`, or `num_entities` for the collection that AI-Q is configured to query.
+
+
+6. Ask a question that can only be answered from the uploaded file.
+
+Example:
+
+```text
+Using the uploaded document, summarize the main topic.
+```
+
+This is a good FRAG test because AI-Q should need the document corpus rather than a general web answer. While the model is thinking, the selected data source should mention the uploaded file name or file-backed knowledge source instead of only **Web Search**.
+
+<img
+  src={FRAGResponse.src}
+  alt="screenshot showing when a response used knowledge layer"
+  className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3"
+/>
+
 
 Check AI-Q backend logs:
 
