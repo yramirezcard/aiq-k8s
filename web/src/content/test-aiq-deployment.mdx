@@ -1,3 +1,6 @@
+import metaResponse from "../images/test-meta-response.png";
+import shallowResponse from "../images/test-shallow-response.png";
+
 At this point the cluster has the AI-Q release installed. This section helps you build confidence that each service is healthy, that the UI is reachable through the launchable endpoint, and that AI-Q can route different types of requests through different agent paths.
 
 ## 1. Verify the installation
@@ -42,11 +45,16 @@ Run the health check from inside the cluster with a temporary curl pod. This avo
 ```bash
 kubectl run aiq-backend-healthcheck -n ns-aiq --rm -i --restart=Never \
   --image=curlimages/curl:8.10.1 -- \
-  curl -sf http://aiq-backend:8000/health
+  curl -sf http://aiq-backend:8000/health | jq
 ```
 
 Expected result: the command exits successfully and prints the backend health response.
 
+```
+{
+  "status": "healthy"
+}
+```
 
 ## 3. Access the AI-Q web UI
 
@@ -80,6 +88,12 @@ What can you help me with?
 
 You should receive a capabilities-style response rather than a long research report.
 
+<img
+  src={metaResponse.src}
+  alt="screenshot showing metadata response path"
+  className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3"
+/>
+
 Check the backend logs after sending the prompt:
 
 ```bash
@@ -87,6 +101,8 @@ kubectl logs -n ns-aiq deploy/aiq-backend --since=5m | grep -Ei "intent|meta|cla
 ```
 
 Look for keywords such as `intent_classifier`, `meta`, `user_intent`, or `workflow`. The exact log wording can vary by image version and log level, but this request should not look like a web-search-heavy or deep-research run.
+
+
 
 ## 5. Test a shallow research route
 
@@ -99,6 +115,12 @@ What are the latest NVIDIA AI Enterprise release highlights?
 ```
 
 This should route differently from the meta-response prompt. AI-Q should classify the request as research, use the shallow researcher, call web search tools, and return a concise answer with sources instead of a multi-section report.
+
+<img
+  src={shallowResponse.src}
+  alt="screenshot showing shallow response path"
+  className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3"
+/>
 
 Check the backend logs again:
 

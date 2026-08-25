@@ -2,19 +2,31 @@ This hands-on section deploys AI-Q from the NGC Helm chart package.
 
 ## Prerequisites
 
-Before running the deployment commands, make sure these values are available in the lab shell:
+Before running the deployment commands, make sure these environment variables are available in the lab shell:
 
-`NGC_API_KEY` is used to authenticate to NGC and NVIDIA hosted model endpoints.
+-  `NGC_API_KEY` is used to authenticate to NGC and NVIDIA hosted model endpoints.
+
+```bash
+env | grep NGC_API_KEY
+```
 
 If you do not have a key yet, follow NVIDIA's [Generating NGC API Keys](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#generating-ngc-api-keys) documentation. You can manage keys from the [NGC API Keys page](https://org.ngc.nvidia.com/account/api-keys); for this lab, the key needs access to NGC Catalog artifacts and NVIDIA hosted API endpoints.
+
+Open  a new shell and set your NGC_API_KEY
 
 ```bash-ref
 export NGC_API_KEY="<your-ngc-or-nvidia-api-key>"
 ```
 
-`TAVILY_API_KEY` enables web search for AI-Q research workflows.
+- `TAVILY_API_KEY` enables web search for AI-Q research workflows.
+
+```bash
+env | grep TAVILY_API_KEY
+```
 
 If you do not have a Tavily key yet, follow the [Tavily Quickstart](https://docs.tavily.com/documentation/quickstart) or the Tavily help article on [creating an API key](https://help.tavily.com/articles/9170796666-how-can-i-create-an-api-key). The key is copied from your Tavily Platform dashboard.
+
+Open  a new shell and set your TAVILY_API_KEY
 
 ```bash-ref
 export TAVILY_API_KEY="<your-tavily-api-key>"

@@ -2,9 +2,17 @@ This hands-on section deploys the NVIDIA RAG Blueprint with Helm. The lab values
 
 ## Prerequisites
 
+Before running the deployment commands, make sure this environment variable is available in the lab shell:
+
 `NGC_API_KEY` is required to pull the RAG Helm chart, access NGC container images, and call NVIDIA hosted endpoints.
 
+```bash
+env | grep NGC_API_KEY
+```
+
 If you do not have a key yet, follow NVIDIA's [Generating NGC API Keys](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#generating-ngc-api-keys) documentation. You can manage keys from the [NGC API Keys page](https://org.ngc.nvidia.com/account/api-keys).
+
+Open  a new shell and set your NGC_API_KEY
 
 ```bash-ref
 export NGC_API_KEY="<your-ngc-or-nvidia-api-key>"
@@ -46,7 +54,7 @@ cat manifests/rag-values.yaml
 The important settings are:
 
 - Hosted endpoints: for the RAG `v2.5.0` services, empty model server URL fields mean "use NVIDIA hosted endpoints" instead of in-cluster NIM services. The NV-Ingest runtime is stricter, so the lab sets `EMBEDDING_NIM_ENDPOINT` explicitly to the hosted embeddings base URL.
-- RAG `v2.5.0` model names: the lab uses the `v2.5.0` default hosted models that are currently available: `APP_EMBEDDINGS_MODELNAME` and `EMBEDDING_NIM_MODEL_NAME` use `nvidia/llama-nemotron-embed-1b-v2`, and `APP_RANKING_MODELNAME` uses `nvidia/llama-nemotron-rerank-1b-v2`.
+- RAG `v2.5.0` model names: the lab uses the `v2.5.0` default hosted models that are currently available: `APP_EMBEDDINGS_MODELNAME` and `EMBEDDING_NIM_MODEL_NAME` use `nvidia/llama-nemotron-embed-vl-1b-v2`, and `APP_RANKING_MODELNAME` uses `nvidia/llama-nemotron-rerank-vl-1b-v2`.
 - Local NIM services disabled: the `nimOperator` overrides disable local model-serving pods so the lab does not require GPUs or large model caches.
 - CPU vector database path: `APP_VECTORSTORE_ENABLEGPUSEARCH` and `APP_VECTORSTORE_ENABLEGPUINDEX` are set to `False`, and the Milvus image is set to the CPU image tag.
 - Text-focused ingestion: table, chart, image, and infographic extraction are disabled so the launchable can focus on document text ingestion without requiring extraction NIMs.
@@ -112,7 +120,7 @@ Start a temporary curl pod to check the RAG server:
 ```bash
 kubectl run rag-healthcheck -n rag --rm -i --restart=Never \
   --image=curlimages/curl:8.10.1 -- \
-  curl -sf http://rag-server:8081/health
+  curl -sf http://rag-server:8081/health | jq
 ```
 
 Then check the ingestor server:
@@ -120,7 +128,7 @@ Then check the ingestor server:
 ```bash
 kubectl run rag-ingestor-healthcheck -n rag --rm -i --restart=Never \
   --image=curlimages/curl:8.10.1 -- \
-  curl -sf http://ingestor-server:8082/health
+  curl -sf http://ingestor-server:8082/health | jq
 ```
 
 Expected result: each endpoint returns HTTP `200` or a successful health response.
