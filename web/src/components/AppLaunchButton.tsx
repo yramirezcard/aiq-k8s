@@ -8,6 +8,7 @@ function buildAppUrl(path: string, port: number) {
 
   const url = new URL(window.location.href);
   const tunnelMatch = url.hostname.match(/^tunnel-(\d+)-(.+)$/);
+  const brevLabMatch = url.hostname.match(/^(.+)\.brevlab\.com$/);
 
   if (tunnelMatch) {
     const currentTunnel = Number(tunnelMatch[1]);
@@ -17,6 +18,17 @@ function buildAppUrl(path: string, port: number) {
 
     if (targetTunnel > 0) {
       url.hostname = `tunnel-${targetTunnel}-${suffix}`;
+    }
+
+    url.port = "";
+  } else if (brevLabMatch) {
+    const subdomain = brevLabMatch[1];
+    const prefixMatch = subdomain.match(/^(?:\d+|ui|aiq-lab)-(.+)$/);
+    const suffix = prefixMatch?.[1] ?? subdomain.split("-").at(-1);
+
+    if (suffix) {
+      const tunnelPrefix = port === 3001 ? "ui" : String(port);
+      url.hostname = `${tunnelPrefix}-${suffix}.brevlab.com`;
     }
 
     url.port = "";
