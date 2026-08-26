@@ -28,11 +28,11 @@ The custom values are grouped by the part of AI-Q they affect.
 `general.telemetry.logging.console.level` is set to `DEBUG`. This demonstrates how runtime logging can be changed from a mounted config file.
 
 ```yaml
-general:
-  telemetry:
-    logging:
-      console:
-        level: DEBUG
+  general:
+    telemetry:
+      logging:
+        console:
+          level: DEBUG
 ```
 
 
@@ -63,7 +63,8 @@ This customization is visible from the UI in the lab. The data-source registry i
 ### Customize Knowledge layer
 
 `knowledge_search.backend` remains `foundational_rag`, so this custom config still uses the RAG Blueprint deployed earlier.
-```
+
+```yaml
   knowledge_search:
     _type: knowledge_retrieval
     backend: foundational_rag
@@ -74,9 +75,9 @@ This customization is visible from the UI in the lab. The data-source registry i
 ### Customize Clarifier agent
 
 ```yaml
-clarifier_agent:
-    max_turns: 1
-    enable_plan_approval: false
+  clarifier_agent:
+      max_turns: 1
+      enable_plan_approval: false
 ```
 `clarifier_agent.max_turns` is reduced to `1`, which limits how many clarification turns AI-Q can use before continuing.
 
@@ -216,6 +217,8 @@ Open the AI-Q UI from the Brev exposed-port link for Envoy with the `/aiq` path.
 Open **Data Sources** and notice the custom registry behavior: **Knowledge Base** is shown, and **Web Search** is not shown. That is the visible proof that the custom config changed the list of data sources exposed to the UI.
 
 Upload a file through the **Files** tab, then send a document-grounded prompt:
+
+Upload the research paper **Llama-Nemotron: Efficient Reasoning Models** https://arxiv.org/pdf/2505.00949 as example
 
 ```text
 Using the uploaded document, create a summarizing report
