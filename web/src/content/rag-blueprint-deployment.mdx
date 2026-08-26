@@ -36,14 +36,6 @@ helm upgrade --install elastic-operator elastic/eck-operator \
   --create-namespace
 ```
 
-Wait for the operator to become available:
-
-```bash
-kubectl rollout status deployment/elastic-operator \
-  -n elastic-system \
-  --timeout=180s
-```
-
 You should see the ECK operator pod running:
 
 ```bash
