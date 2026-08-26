@@ -1,3 +1,5 @@
+import dataSources from "../images/data-sources-off.png";
+
 AI-Q is configured through a YAML file that defines runtime settings, model endpoints, tools, agents, and the top-level workflow. In the earlier deployment sections, `CONFIG_FILE` pointed to config files already packaged inside the backend image. In this section, you will mount a local config file into the backend pod and make AI-Q use it.
 
 Source references: [AI-Q Configuration Reference](https://docs.nvidia.com/aiq-blueprint/2.1.0/customization/configuration-reference.html) and the AI-Q `release/2.1` [config_web_frag.yml](https://github.com/NVIDIA-AI-Blueprints/aiq/blob/release/2.1/configs/config_web_frag.yml).
@@ -23,30 +25,71 @@ This configuration is based on the AI-Q `release/2.1` `configs/config_web_frag.y
 The custom values are grouped by the part of AI-Q they affect.
 
 ### Customize logging level
-
 `general.telemetry.logging.console.level` is set to `DEBUG`. This demonstrates how runtime logging can be changed from a mounted config file.
 
+```yaml
+general:
+  telemetry:
+    logging:
+      console:
+        level: DEBUG
+```
+
+
 ### Customize Data sources
+`data_sources.sources` contains only `knowledge_layer`. 
 
-`functions.data_sources.sources` contains only `knowledge_layer`. The `web_search` source is intentionally removed from the registry, so the UI no longer shows Web Search as a selectable data source.
+The `web_search` source is intentionally removed from the registry, so the UI no longer shows Web Search as a selectable data source.
 
-This is the most visible customization in the lab. The data-source registry is what the UI uses to render source toggles, so changing the registry changes the list of sources the student can select.
+```yaml
+  data_sources:
+    _type: data_source_registry
+    sources:
+      - id: knowledge_layer
+        name: "Knowledge Base"
+        description: "Search uploaded documents and files."
+        default_enabled: true
+        tools:
+          - knowledge_search
+```
+This customization is visible from the UI in the lab. The data-source registry is what the UI uses to render source toggles, so changing the registry changes the list of sources the student can select.
+
+<img
+  src={dataSources.src}
+  alt="screenshot showing data sources empty"
+  className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3"
+/>
 
 ### Customize Knowledge layer
 
 `knowledge_search.backend` remains `foundational_rag`, so this custom config still uses the RAG Blueprint deployed earlier.
-
-`knowledge_search.top_k` is reduced to `3`. This is still relevant because Knowledge Base remains the active source: it controls how many retrieved chunks AI-Q asks the Knowledge Layer to return for a document-grounded request.
+```
+  knowledge_search:
+    _type: knowledge_retrieval
+    backend: foundational_rag
+    top_k: 2
+```
+`knowledge_search.top_k` is reduced to `2`. This is still relevant because Knowledge Base remains the active source: it controls how many retrieved chunks AI-Q asks the Knowledge Layer to return for a document-grounded request.
 
 ### Customize Clarifier agent
 
-`clarifier_agent.max_turns` is reduced to `2`, which limits how many clarification turns AI-Q can use before continuing.
+```yaml
+clarifier_agent:
+    max_turns: 1
+    enable_plan_approval: false
+```
+`clarifier_agent.max_turns` is reduced to `1`, which limits how many clarification turns AI-Q can use before continuing.
 
-The clarifier section also exposes human-in-the-loop behavior through `enable_plan_approval`. This lab keeps `enable_plan_approval: true`, but in a different demo you could set it to `false` to avoid asking the user to approve the plan before continuing.
+The clarifier section also exposes human-in-the-loop behavior through `enable_plan_approval`. This lab sets `enable_plan_approval: false`, to avoid asking the user to approve the plan before continuing.
 
 ### Customize shallow research agent
 
-`shallow_research_agent.max_tool_iterations` is reduced to `4`, and `shallow_research_agent.max_llm_turns` is reduced to `6`. These values keep the shallow research path bounded for the lab environment.
+```yaml
+  shallow_research_agent:
+    max_llm_turns: 6
+    max_tool_iterations: 4
+```
+`max_tool_iterations` is reduced to `4`, and `max_llm_turns` is reduced to `6`. These values keep the shallow research path bounded for the lab environment.
 
 The practical impact is that AI-Q starts in a document-focused posture: Knowledge Base is the only data source exposed to the UI, RAG retrieval returns fewer chunks, and shallow research has a smaller iteration budget.
 
@@ -141,29 +184,27 @@ You can also inspect the rendered deployment to verify the environment variable,
 kubectl get deploy aiq-backend -n ns-aiq -o yaml | grep -nE "CONFIG_FILE|aiq-custom-config|custom-config" -A4 -B4
 ```
 
-Verify the ConfigMap content that Kubernetes mounted into the pod:
-
-```bash
-kubectl get configmap aiq-custom-config -n ns-aiq \
-  -o jsonpath='{.data.config_lab_custom\.yml}' | grep -nE "level: DEBUG|id: knowledge_layer|backend: foundational_rag|top_k: 3|max_turns: 2|enable_plan_approval: true|max_tool_iterations: 4|max_llm_turns: 6"
-```
-
-You should see the custom values from `manifests/configs/config_lab_custom.yml`.
-
 ## 6. Test the change on Data sources
 
 Confirm that the backend now advertises only the Knowledge Base data source:
 
 ```bash
-kubectl run aiq-data-sources-check -n ns-aiq --rm -i --restart=Never \
+kubectl run aiq-data-sources-check -n ns-aiq --quiet --rm -i --restart=Never \
   --image=curlimages/curl:8.10.1 -- \
-  sh -c 'curl -s http://aiq-backend:8000/v1/data_sources; echo'
+  sh -c 'curl -s http://aiq-backend:8000/v1/data_sources; echo' | jq .
 ```
 
 Expected shape:
 
 ```json
-[{"id":"knowledge_layer","name":"Knowledge Base","description":"Search uploaded documents and files.","requires_auth":false}]
+[
+  {
+    "id": "knowledge_layer",
+    "name": "Knowledge Base",
+    "description": "Search uploaded documents and files.",
+    "requires_auth": false
+  }
+]
 ```
 
 ## 7. Test the change from the AI-Q UI
@@ -177,10 +218,12 @@ Open **Data Sources** and notice the custom registry behavior: **Knowledge Base*
 Upload a file through the **Files** tab, then send a document-grounded prompt:
 
 ```text
-Using the uploaded document, summarize the key claims and list any implementation constraints.
+Using the uploaded document, create a summarizing report
 ```
 
 This is a good test because it exercises the same FRAG path from the previous section while using the locally mounted config. The smaller `knowledge_search.top_k` should keep retrieval focused, and the reduced shallow research limits make the workflow easier to observe in the lab.
+
+Since approving the plan was disabled, the report creation starts immediately without human-in-the-loop. 
 
 Check the backend logs for the request path:
 

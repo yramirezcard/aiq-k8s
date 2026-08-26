@@ -11,11 +11,6 @@ general:
       console:
         _type: console
         level: DEBUG
-    # tracing:
-    #   langsmith: # Optional: LangSmith tracing - requires langsmith API key.
-    #     _type: langsmith
-    #     project: nvidia-aiq
-
   front_end:
     _type: aiq_api
     runner_class: aiq_api.plugin.AIQAPIWorker
@@ -109,8 +104,8 @@ functions:
     planner_llm: nemotron_nano_llm
     # tools: omitted -> inherits all from data_source_registry
     # exclude_tools: []
-    max_turns: 2
-    enable_plan_approval: true
+    max_turns: 1
+    enable_plan_approval: false
     log_response_max_chars: 2000
     verbose: true
 

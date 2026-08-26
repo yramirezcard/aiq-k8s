@@ -1,5 +1,6 @@
 import metaResponse from "../images/test-meta-response.png";
 import shallowResponse from "../images/test-shallow-response.png";
+import deepResponse from "../images/test-deep-research-response.png";
 
 At this point the cluster has the AI-Q release installed. This section helps you build confidence that each service is healthy, that the UI is reachable through the launchable endpoint, and that AI-Q can route different types of requests through different agent paths.
 
@@ -144,6 +145,22 @@ Compare Kubernetes deployment patterns for enterprise RAG systems, including man
 
 This should route differently from shallow research because the question asks for a multi-part analysis and a recommendation. AI-Q should need to break the task down, gather evidence from multiple sources, reason across criteria, and produce a more report-like answer.
 
+<Callout type="warn" title="Do now wait for the Report">
+The creation of the report will take several minutes, since the purpose of the query is simply to Test that is routed to the Deep research path. 
+
+You do not wait for the report to finish or optionally you can reject the research plan when prompted. 
+
+**Then continue with the lab.**
+
+</Callout>
+
+
+<img
+  src={deepResponse.src}
+  alt="screenshot showing deep response response path"
+  className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3"
+/>
+
 Check the backend logs:
 
 ```bash
@@ -154,29 +171,8 @@ Look for keywords such as `deep_research_agent`, `planner`, `researcher`, `write
 
 If the response is short and shallow, make the request more explicitly comparative. Words like `compare`, `evaluate`, `recommend`, `tradeoffs`, and `for a regulated team` help signal that the answer needs deeper research.
 
-## 7. Test an escalation route
 
-Finally, test a prompt that starts small but naturally requires deeper analysis. Escalation is useful when AI-Q begins in a lighter route and decides the request needs a stronger research path to answer well.
-
-In the AI-Q UI, send:
-
-```text
-Should our platform team standardize on one retrieval architecture for all business units, or allow teams to choose their own RAG stack? Consider cost, governance, operational complexity, and time to production.
-```
-
-This is a good escalation candidate because it is framed as a strategic decision. It is broader than a shallow fact lookup, but it is not simply asking for a generic deep report from the first word. AI-Q may classify the request, discover that a useful answer needs structured evaluation, and escalate toward deeper research or clarification.
-
-Check the backend logs:
-
-```bash
-kubectl logs -n ns-aiq deploy/aiq-backend --since=10m | grep -Ei "escalat|clarif|deep|shallow|intent|route|decision|workflow|research"
-```
-
-Look for keywords such as `escalation`, `enable_escalation`, `clarifier_agent`, `deep_research_agent`, `shallow_research_agent`, `route`, `decision`, or `intent_classifier`. The exact wording depends on the image and log level, but this test should show routing decisions and may show the workflow moving from an initial route toward a deeper one.
-
-If AI-Q asks a clarifying question, that is also a valid signal. The clarifier route can appear when the system decides the request is too broad or under-specified to answer responsibly. Answer the clarification and continue; the next turn should give you a better signal about whether AI-Q continues with shallow or deep research.
-
-## 8. What just happened
+## 7. What just happened
 
 - You verified that the AI-Q pods, services, Gateway, and HTTPRoute are present.
 - You tested backend health from inside the cluster without blocking the terminal with port-forwarding.

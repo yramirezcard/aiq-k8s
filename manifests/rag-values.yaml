@@ -121,11 +121,11 @@ nv-ingest:
   # Brev VM, so keep ingestion text-focused and resource requests modest.
   resources:
     requests:
-      cpu: "1500m"
-      memory: "6Gi"
+      cpu: "1"
+      memory: "8Gi"
     limits:
       cpu: "3"
-      memory: "10Gi"
+      memory: "14Gi"
   tmpDirSize: "20Gi"
   milvusDeployed: false
   nimOperator:
@@ -149,7 +149,7 @@ nv-ingest:
     COMPONENTS_TO_READY_CHECK: ""
     MAX_INGEST_PROCESS_WORKERS: "1"
     NV_INGEST_MAX_UTIL: "1"
-    PDF_SPLIT_PAGE_COUNT: "64"
+    PDF_SPLIT_PAGE_COUNT: "4"
     ENABLE_NV_INGEST_DYNAMIC_BATCHING: "False"
     INGESTION_MAX_MEMORY_BUDGET_MB: "512"
     READY_CHECK_ALL_COMPONENTS: "False"
