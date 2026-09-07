@@ -77,10 +77,12 @@ kubectl get secret ngc-secret -n ns-aiq
 
 ## 3. Pull the AI-Q Helm chart
 
-Pull the chart archive using your NGC API key:
+Set the AI-Q chart version once, then pull the chart archive using your NGC API key:
 
 ```bash
-helm pull https://helm.ngc.nvidia.com/nvidia/blueprint/charts/aiq2-web-2.1.0.tgz \
+export AIQ_VERSION="2.2.0"
+
+helm pull https://helm.ngc.nvidia.com/nvidia/blueprint/charts/aiq2-web-${AIQ_VERSION}.tgz \
   --username '$oauthtoken' \
   --password "$NGC_API_KEY"
 ```
@@ -88,7 +90,7 @@ helm pull https://helm.ngc.nvidia.com/nvidia/blueprint/charts/aiq2-web-2.1.0.tgz
 Confirm the archive exists:
 
 ```bash
-ls -lh aiq2-web-2.1.0.tgz
+ls -lh aiq2-web-${AIQ_VERSION}.tgz
 ```
 
 ## 4. Inspect the custom values file
@@ -104,7 +106,7 @@ The file contains the launchable-specific overrides used by this tutorial, inclu
 You can still inspect the chart defaults for comparison:
 
 ```bash
-helm show values aiq2-web-2.1.0.tgz | sed -n '1,220p'
+helm show values aiq2-web-${AIQ_VERSION}.tgz | sed -n '1,220p'
 ```
 
 ## 5. Inspect default configuration file
@@ -222,7 +224,7 @@ The source repository publishes the packaged config examples under [configs/](ht
 Start by inspecting the backend environment values from the chart defaults. The backend loads its AI-Q workflow configuration from the `CONFIG_FILE` environment variable:
 
 ```bash
-helm show values aiq2-web-2.1.0.tgz | grep -B4 "CONFIG_FILE"
+helm show values aiq2-web-${AIQ_VERSION}.tgz | grep -B4 "CONFIG_FILE"
 ```
 
 You should see the default non-FRAG web config:
@@ -245,7 +247,7 @@ When you adapt the lab later you will change the default `CONFIG_FILE` to integr
 Install the release with the provided values file:
 
 ```bash
-helm upgrade --install aiq ./aiq2-web-2.1.0.tgz \
+helm upgrade --install aiq ./aiq2-web-${AIQ_VERSION}.tgz \
   -n ns-aiq \
   --wait --timeout 10m \
   -f manifests/aiq-values.yaml

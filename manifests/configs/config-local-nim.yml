@@ -106,7 +106,9 @@ functions:
     _type: deep_research_agent
     orchestrator_llm: local_nemotron_nano_llm
     researcher_llm: local_nemotron_nano_llm
-    planner_llm: local_nemotron_nano_llm
+    planner_llm: local_nemotron_nano_llm    
+    source_router_llm: local_nemotron_nano_llm
+    writer_llm: local_nemotron_nano_llm
     # tools: omitted -> inherits all from data_source_registry
     exclude_tools:
       - web_search_tool
