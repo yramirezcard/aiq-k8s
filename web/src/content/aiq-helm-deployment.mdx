@@ -80,7 +80,7 @@ kubectl get secret ngc-secret -n ns-aiq
 Set the AI-Q chart version once, then pull the chart archive using your NGC API key:
 
 ```bash
-export AIQ_VERSION="2.2.0"
+export AIQ_VERSION="2.2.1"
 
 helm pull https://helm.ngc.nvidia.com/nvidia/blueprint/charts/aiq2-web-${AIQ_VERSION}.tgz \
   --username '$oauthtoken' \
